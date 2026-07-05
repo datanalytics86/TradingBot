@@ -1,0 +1,30 @@
+# Configuración del bot. Los valores de riesgo son el corazón del sistema:
+# cámbialos solo entendiendo el efecto (ver README).
+
+mode: paper          # paper | live  (live requiere cuenta fondeada y validación previa)
+initial_capital: 500
+
+# Universo a operar. Con cuenta cash de USD 500 no se pueden hacer shorts
+# directos de acciones (FINRA exige USD 2,000 de margin), así que la
+# exposición short se toma comprando el ETF inverso (short_proxy).
+universe:
+  - symbol: SPY
+    short_proxy: SH      # ProShares Short S&P 500
+  - symbol: QQQ
+    short_proxy: PSQ     # ProShares Short QQQ
+
+strategy:
+  ema_fast: 20
+  ema_slow: 50
+  trend_filter: 200      # SMA de 200 días: solo longs sobre ella, solo shorts bajo ella
+  atr_period: 14
+  atr_stop_mult: 2.5     # stop de seguimiento a 2.5 ATR del cierre
+
+risk:
+  risk_per_trade: 0.02   # 2% del equity arriesgado por operación
+  max_position_pct: 0.45 # ninguna posición puede superar el 45% del equity
+  max_drawdown: 0.15     # circuit breaker: si el equity cae 15% desde su máximo,
+                         # se liquida todo y el bot se apaga (crea archivo HALT)
+
+data:
+  lookback_days: 400     # días de historia para calcular indicadores
