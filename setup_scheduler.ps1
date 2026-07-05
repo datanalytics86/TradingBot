@@ -35,9 +35,10 @@ $TaskName = "TradingBot-DailyCycle"
 $LogDir = Join-Path $ProjectRoot "logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
+$RunScript = Join-Path $ProjectRoot "run_daily.ps1"
 $Action = New-ScheduledTaskAction `
-    -Execute $Python `
-    -Argument "-m tradingbot.main" `
+    -Execute "powershell.exe" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$RunScript`"" `
     -WorkingDirectory $ProjectRoot
 
 # Lunes a viernes a la hora indicada (hora local del sistema)
