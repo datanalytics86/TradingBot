@@ -10,6 +10,9 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 HALT_FILE = ROOT / "HALT"
 STATE_FILE = ROOT / "state.json"
+EQUITY_HISTORY_FILE = ROOT / "equity_history.csv"
+LOG_DIR = ROOT / "logs"
+LOG_FILE = LOG_DIR / "bot.log"
 
 
 @dataclass

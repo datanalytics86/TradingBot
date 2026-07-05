@@ -162,7 +162,7 @@ def run_backtest(cfg: Config, start: str) -> tuple[pd.Series, list[dict]]:
     all_trades: list[dict] = []
 
     for inst in cfg.universe:
-        df = fetch_daily(inst.symbol, start=start)
+        df = fetch_daily(inst.symbol, start=start, validate_freshness=False)
         df_ind = compute_indicators(df, cfg.strategy)
         eq_series, trades = _simulate_symbol(df_ind, alloc, cfg.strategy, cfg.risk)
         equity_by_symbol[inst.symbol] = eq_series

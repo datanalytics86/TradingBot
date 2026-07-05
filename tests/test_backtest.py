@@ -39,7 +39,7 @@ def uptrend_data():
 
 def test_run_backtest_no_nans(monkeypatch, uptrend_data):
     cfg = make_cfg()
-    monkeypatch.setattr(backtest, "fetch_daily", lambda symbol, start=None, days=None: uptrend_data.copy())
+    monkeypatch.setattr(backtest, "fetch_daily", lambda symbol, start=None, days=None, validate_freshness=True: uptrend_data.copy())
 
     equity_curve, trades = backtest.run_backtest(cfg, start="2019-01-01")
 
@@ -49,7 +49,7 @@ def test_run_backtest_no_nans(monkeypatch, uptrend_data):
 
 def test_equity_curve_starts_at_initial_capital(monkeypatch, uptrend_data):
     cfg = make_cfg()
-    monkeypatch.setattr(backtest, "fetch_daily", lambda symbol, start=None, days=None: uptrend_data.copy())
+    monkeypatch.setattr(backtest, "fetch_daily", lambda symbol, start=None, days=None, validate_freshness=True: uptrend_data.copy())
 
     equity_curve, _ = backtest.run_backtest(cfg, start="2019-01-01")
 
@@ -58,7 +58,7 @@ def test_equity_curve_starts_at_initial_capital(monkeypatch, uptrend_data):
 
 def test_strong_uptrend_yields_positive_return(monkeypatch, uptrend_data):
     cfg = make_cfg()
-    monkeypatch.setattr(backtest, "fetch_daily", lambda symbol, start=None, days=None: uptrend_data.copy())
+    monkeypatch.setattr(backtest, "fetch_daily", lambda symbol, start=None, days=None, validate_freshness=True: uptrend_data.copy())
 
     equity_curve, trades = backtest.run_backtest(cfg, start="2019-01-01")
 

@@ -79,3 +79,12 @@ class AlpacaBroker:
             if "position does not exist" in str(exc).lower() or "404" in str(exc):
                 return None
             raise
+
+    def list_positions(self) -> dict[str, float]:
+        """Devuelve un dict {symbol: qty} de todas las posiciones abiertas en la cuenta.
+
+        Usado para reconciliar el estado local (state.json) contra la
+        realidad del broker (ver `main._reconcile_positions`).
+        """
+        positions = self._client.get_all_positions()
+        return {p.symbol: float(p.qty) for p in positions}
