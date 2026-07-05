@@ -12,6 +12,8 @@ universe:
     short_proxy: SH      # ProShares Short S&P 500
   - symbol: QQQ
     short_proxy: PSQ     # ProShares Short QQQ
+  - symbol: IWM
+    short_proxy: RWM     # ProShares Short Russell 2000
 
 strategy:
   ema_fast: 20
@@ -19,12 +21,19 @@ strategy:
   trend_filter: 200      # SMA de 200 días: solo longs sobre ella, solo shorts bajo ella
   atr_period: 14
   atr_stop_mult: 2.5     # stop de seguimiento a 2.5 ATR del cierre
+  adx_period: 14
+  min_adx: 20            # solo opera si hay tendencia clara (evita mercados laterales)
+  vol_scale_threshold: 1.5 # reduce tamaño si ATR > 1.5x su media de 20 días
+  vol_scale_factor: 0.6    # factor de reducción en alta volatilidad
 
 risk:
-  risk_per_trade: 0.02   # 2% del equity arriesgado por operación
-  max_position_pct: 0.45 # ninguna posición puede superar el 45% del equity
-  max_drawdown: 0.15     # circuit breaker: si el equity cae 15% desde su máximo,
-                         # se liquida todo y el bot se apaga (crea archivo HALT)
+  risk_per_trade: 0.02     # 2% del equity arriesgado por operación
+  max_position_pct: 0.35   # ninguna posición individual supera el 35% del equity
+  max_total_exposure_pct: 0.70  # tope duro de exposición total (suma de posiciones)
+  max_drawdown: 0.15       # circuit breaker: si el equity cae 15% desde su máximo,
+                           # se liquida todo y el bot se apaga (crea archivo HALT)
 
 data:
-  lookback_days: 400     # días de historia para calcular indicadores
+  lookback_days: 400       # días de historia para calcular indicadores
+  retries: 3               # reintentos automáticos si yfinance falla
+  retry_delay_seconds: 2.0 # espera base entre reintentos (se multiplica por intento)

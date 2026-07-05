@@ -21,6 +21,7 @@ from tradingbot.broker import AlpacaBroker
 from tradingbot.config import (
     EQUITY_HISTORY_FILE,
     HALT_FILE,
+    LAST_RUN_FILE,
     LOG_FILE,
     STATE_FILE,
     Config,
@@ -29,8 +30,13 @@ from tradingbot.config import (
 )
 from tradingbot.data import fetch_daily
 from tradingbot.notify import send_telegram
-from tradingbot.risk import check_circuit_breaker, position_size
-from tradingbot.strategy import compute_indicators, signal, trailing_stop
+from tradingbot.risk import (
+    apply_volatility_scaling,
+    cap_by_total_exposure,
+    check_circuit_breaker,
+    position_size,
+)
+from tradingbot.strategy import compute_indicators, signal, trailing_stop, trend_strength
 
 log = logging.getLogger("tradingbot")
 
@@ -108,6 +114,65 @@ def _notify_safe(text: str) -> None:
         log.warning("Fallo inesperado notificando por Telegram: %s", exc)
 
 
+def _fetch_daily(symbol: str, cfg: Config, **kwargs) -> object:
+    """Wrapper de fetch_daily con reintentos configurados en config.yaml."""
+    return fetch_daily(
+        symbol,
+        days=cfg.lookback_days,
+        retries=cfg.data.retries,
+        retry_delay_seconds=cfg.data.retry_delay_seconds,
+        **kwargs,
+    )
+
+
+def _estimate_exposure(broker: AlpacaBroker, price_cache: dict[str, float]) -> float:
+    """Estima el valor nocional total de las posiciones abiertas."""
+    try:
+        positions = broker.list_positions()
+    except Exception:  # noqa: BLE001
+        return 0.0
+    total = 0.0
+    for sym, qty in positions.items():
+        if qty == 0:
+            continue
+        price = price_cache.get(sym)
+        if price and price > 0:
+            total += abs(qty) * price
+    return total
+
+
+def _rank_instruments(instruments: list[Instrument], cfg: Config, adopted: set[str]) -> list[Instrument]:
+    """Ordena instrumentos por fuerza de tendencia (los más fuertes primero)."""
+    ranked: list[tuple[float, Instrument]] = []
+    for inst in instruments:
+        if inst.symbol in adopted:
+            continue
+        try:
+            df = _fetch_daily(inst.symbol, cfg)
+            df_ind = compute_indicators(df, cfg.strategy)
+            ranked.append((trend_strength(df_ind), inst))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("No se pudo rankear %s: %s — se procesará al final", inst.symbol, exc)
+            ranked.append((0.0, inst))
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    return [inst for _, inst in ranked]
+
+
+def _write_last_run(status: str, equity: float, errors: list[tuple[str, str]], summaries: list[dict]) -> None:
+    """Registra el resultado del último ciclo en last_run.json (monitoreo automático)."""
+    payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "status": status,
+        "equity": round(equity, 2),
+        "errors": [{"symbol": s, "message": m} for s, m in errors],
+        "summaries": summaries,
+    }
+    try:
+        LAST_RUN_FILE.write_text(json.dumps(payload, indent=2, default=str))
+    except OSError as exc:  # noqa: BLE001
+        log.warning("No se pudo escribir last_run.json: %s", exc)
+
+
 def _desired_target(inst: Instrument, sig: str) -> tuple[str, str] | tuple[None, None]:
     """Devuelve (symbol_a_operar, señal_original) según la señal, o (None, None) si FLAT.
 
@@ -144,7 +209,7 @@ def _reference_data(
     if symbol == inst_symbol:
         return float(last["Close"]), float(last["atr"])
 
-    proxy_df = fetch_daily(symbol, days=cfg.lookback_days)
+    proxy_df = _fetch_daily(symbol, cfg)
     proxy_ind = compute_indicators(proxy_df, cfg.strategy)
     proxy_last = proxy_ind.iloc[-1]
     return float(proxy_last["Close"]), float(proxy_last["atr"])
@@ -154,17 +219,30 @@ def _empty_sym_state() -> dict:
     return {"direction": None, "stop": None, "traded_symbol": None, "signal_direction": None}
 
 
-def _process_instrument(inst: Instrument, cfg: Config, broker: AlpacaBroker, state: dict) -> dict:
+def _process_instrument(
+    inst: Instrument,
+    cfg: Config,
+    broker: AlpacaBroker,
+    state: dict,
+    exposure_state: dict[str, float],
+    price_cache: dict[str, float],
+) -> dict:
     """Procesa un instrumento del universo: calcula señal, gestiona stop/cierre y abre si corresponde.
 
     Devuelve un pequeño resumen (dict) usado para el reporte/notificación del ciclo.
     """
     log.info("Procesando %s", inst.symbol)
-    df = fetch_daily(inst.symbol, days=cfg.lookback_days)
+    df = _fetch_daily(inst.symbol, cfg)
     df_ind = compute_indicators(df, cfg.strategy)
     sig = signal(df_ind, cfg.strategy)
     last = df_ind.iloc[-1]
-    log.info("%s señal=%s close=%.2f atr=%.4f", inst.symbol, sig, last["Close"], last["atr"])
+    strength = trend_strength(df_ind)
+    price_cache[inst.symbol] = float(last["Close"])
+    log.info(
+        "%s señal=%s close=%.2f atr=%.4f adx=%.1f fuerza=%.3f",
+        inst.symbol, sig, last["Close"], last["atr"],
+        float(last.get("adx", 0) or 0), strength,
+    )
 
     summary = {"symbol": inst.symbol, "signal": sig, "action": "ninguna"}
 
@@ -203,6 +281,8 @@ def _process_instrument(inst: Instrument, cfg: Config, broker: AlpacaBroker, sta
                 reason = "stop" if stop_hit else "cambio de señal"
                 log.info("Cerrando posición en %s (%s)", current_traded_symbol, reason)
                 broker.close_position(current_traded_symbol)
+                closed_notional = abs(current_qty) * ref_close
+                exposure_state["total"] = max(0.0, exposure_state["total"] - closed_notional)
                 summary["action"] = f"cierre {current_traded_symbol} ({reason})"
                 sym_state = _empty_sym_state()
             else:
@@ -217,15 +297,26 @@ def _process_instrument(inst: Instrument, cfg: Config, broker: AlpacaBroker, sta
     # 2) Si tras el paso anterior no hay posición y el objetivo es LONG/SHORT, abrir.
     if sym_state.get("traded_symbol") is None and target_symbol is not None:
         entry_close, entry_atr = _reference_data(target_symbol, inst.symbol, df_ind, last, cfg)
+        price_cache[target_symbol] = entry_close
         equity = broker.get_equity()
         stop_distance = cfg.strategy.atr_stop_mult * entry_atr
+        atr_avg = float(last.get("atr_avg") or entry_atr)
         qty = position_size(equity, entry_close, stop_distance, cfg.risk)
+        qty = apply_volatility_scaling(qty, entry_atr, atr_avg, cfg.strategy)
+        proposed_notional = qty * entry_close
+        allowed_notional = cap_by_total_exposure(
+            equity, exposure_state["total"], proposed_notional, cfg.risk,
+        )
+        if allowed_notional < proposed_notional and entry_close > 0:
+            qty = round(allowed_notional / entry_close, 3)
         if qty > 0:
             log.info(
-                "Abriendo señal=%s en %s (target=%s) qty=%.3f precio=%.2f",
+                "Abriendo señal=%s en %s (target=%s) qty=%.3f precio=%.2f exposición=%.0f/%.0f",
                 sig, inst.symbol, target_symbol, qty, entry_close,
+                exposure_state["total"], equity * cfg.risk.max_total_exposure_pct,
             )
             broker.market_order(target_symbol, qty, "buy")
+            exposure_state["total"] += qty * entry_close
             new_stop = trailing_stop(entry_close, entry_atr, None, "LONG", cfg.strategy.atr_stop_mult)
             sym_state = {
                 "direction": "LONG",
@@ -235,7 +326,10 @@ def _process_instrument(inst: Instrument, cfg: Config, broker: AlpacaBroker, sta
             }
             summary["action"] = f"abre {target_symbol} qty={qty:.3f}"
         else:
-            log.info("Señal %s en %s pero tamaño de posición calculado es 0, no se opera", sig, inst.symbol)
+            log.info(
+                "Señal %s en %s pero tamaño=0 (riesgo, vol alta o tope de exposición total)",
+                sig, inst.symbol,
+            )
 
     positions_state[inst.symbol] = sym_state
     return summary
@@ -291,7 +385,7 @@ def _reconcile_positions(cfg: Config, broker: AlpacaBroker, state: dict) -> set[
     for sym in orphan_symbols:
         inst, signal_direction = universe_map[sym]
         try:
-            df = fetch_daily(sym, days=cfg.lookback_days)
+            df = _fetch_daily(sym, cfg)
             df_ind = compute_indicators(df, cfg.strategy)
             last = df_ind.iloc[-1]
             stop = trailing_stop(float(last["Close"]), float(last["atr"]), None, "LONG", cfg.strategy.atr_stop_mult)
@@ -352,24 +446,33 @@ def run_cycle() -> int:
 
     adopted = _reconcile_positions(cfg, broker, state)
 
+    price_cache: dict[str, float] = {}
+    exposure_state = {"total": _estimate_exposure(broker, price_cache)}
+    ranked = _rank_instruments(cfg.universe, cfg, adopted)
+
     errors: list[tuple[str, str]] = []
     summaries: list[dict] = []
-    for inst in cfg.universe:
-        if inst.symbol in adopted:
-            log.info(
-                "%s: posición adoptada este ciclo tras reconciliación, se gestiona desde el próximo ciclo",
-                inst.symbol,
-            )
-            summaries.append({"symbol": inst.symbol, "signal": "n/d", "action": "adoptada (sin operar)"})
-            continue
+    for sym in adopted:
+        log.info(
+            "%s: posición adoptada este ciclo tras reconciliación, se gestiona desde el próximo ciclo",
+            sym,
+        )
+        summaries.append({"symbol": sym, "signal": "n/d", "action": "adoptada (sin operar)"})
+
+    for inst in ranked:
         try:
-            summaries.append(_process_instrument(inst, cfg, broker, state))
+            summaries.append(
+                _process_instrument(inst, cfg, broker, state, exposure_state, price_cache)
+            )
         except Exception as exc:  # noqa: BLE001 - no dejar que un símbolo aborte el ciclo
             log.exception("Error procesando %s: %s", inst.symbol, exc)
             errors.append((inst.symbol, str(exc)))
 
     _save_state(state)
     _append_equity_history(equity)
+
+    status = "error" if errors else "ok"
+    _write_last_run(status, equity, errors, summaries)
 
     lines = [f"Ciclo diario completado. Equity: {equity:.2f}"]
     for s in summaries:
@@ -379,12 +482,12 @@ def run_cycle() -> int:
         for sym, err in errors:
             lines.append(f"  {sym}: {err}")
         log.warning("Ciclo terminado con errores en: %s", ", ".join(s for s, _ in errors))
+        _notify_safe("⚠️ Ciclo con errores\n" + "\n".join(lines))
     else:
         log.info("Ciclo diario completado sin errores")
+        _notify_safe("\n".join(lines))
 
-    _notify_safe("\n".join(lines))
-
-    return 0
+    return 1 if errors else 0
 
 
 def main() -> None:

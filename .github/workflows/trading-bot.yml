@@ -1,18 +1,14 @@
 name: Ciclo diario del trading bot
 
 # Corre después del cierre de NYSE (16:00 ET). 21:35 UTC da margen para que
-# se asienten los datos de fin de día y cubre tanto horario estándar como de
-# verano de EE.UU. sin ajustes manuales. Nota: el `schedule` de GitHub
-# Actions puede retrasarse varios minutos respecto a la hora exacta del cron
-# (a veces bastante más en horas de carga alta); para una estrategia diaria
-# esto es irrelevante.
+# se asienten los datos de fin de día.
 on:
   schedule:
-    - cron: "35 21 * * 1-5" # Lunes a viernes, 21:35 UTC
-  workflow_dispatch: {} # permite lanzarlo a mano desde la pestaña Actions
+    - cron: "35 21 * * 1-5"
+  workflow_dispatch:
 
 permissions:
-  contents: write # necesario para commitear/pushear state.json y equity_history.csv
+  contents: write
 
 jobs:
   run-bot:
@@ -30,12 +26,40 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Ejecutar el ciclo diario del bot
+        id: bot
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 -m tradingbot.main
+        continue-on-error: true
+
+      - name: Notificar fallo por Telegram
+        if: steps.bot.outcome == 'failure'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            python3 -c "
+          import json, os, urllib.request
+          msg = 'TradingBot: el ciclo diario FALLÓ en GitHub Actions. Revisa los logs.'
+          if os.path.exists('last_run.json'):
+              with open('last_run.json') as f:
+                  data = json.load(f)
+              errs = data.get('errors', [])
+              if errs:
+                  msg += '\nErrores: ' + ', '.join(e['symbol'] for e in errs)
+          payload = json.dumps({'chat_id': os.environ['TELEGRAM_CHAT_ID'], 'text': msg}).encode()
+          req = urllib.request.Request(
+              f\"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage\",
+              data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+          try:
+              urllib.request.urlopen(req, timeout=10)
+          except Exception:
+              pass
+          "
 
       - name: Commitear y pushear el estado actualizado
         if: always()
@@ -43,7 +67,7 @@ jobs:
           git config user.name "trading-bot"
           git config user.email "trading-bot@users.noreply.github.com"
 
-          git add state.json equity_history.csv 2>/dev/null || true
+          git add state.json equity_history.csv last_run.json 2>/dev/null || true
           if [ -f HALT ]; then
             git add HALT
           fi
@@ -54,3 +78,7 @@ jobs:
             git commit -m "Actualiza estado del bot [skip ci]"
             git push
           fi
+
+      - name: Fallar el job si el bot falló
+        if: steps.bot.outcome == 'failure'
+        run: exit 1

@@ -17,13 +17,10 @@ def compute_indicators(df: pd.DataFrame, params: StrategyParams) -> pd.DataFrame
     Columnas agregadas:
     - ``ema_fast``: EMA de `params.ema_fast` periodos sobre Close.
     - ``ema_slow``: EMA de `params.ema_slow` periodos sobre Close.
-    - ``sma_trend``: SMA de `params.trend_filter` periodos sobre Close (filtro de tendencia).
-    - ``atr``: Average True Range calculado como la MEDIA MÓVIL SIMPLE (no Wilder)
-      del True Range sobre `params.atr_period` periodos. Se elige la media simple
-      por ser más transparente y fácil de razonar/testear; para esta estrategia
-      de trailing-stop la diferencia frente al suavizado de Wilder es marginal.
-
-    Devuelve una copia del DataFrame de entrada con las columnas agregadas.
+    - ``sma_trend``: SMA de `params.trend_filter` periodos sobre Close.
+    - ``atr``: media simple del True Range sobre `params.atr_period` periodos.
+    - ``adx``: fuerza de tendencia (ADX) sobre `params.adx_period` periodos.
+    - ``atr_avg``: media móvil de 20 periodos del ATR (para scaling de vol).
     """
     out = df.copy()
 
@@ -37,24 +34,62 @@ def compute_indicators(df: pd.DataFrame, params: StrategyParams) -> pd.DataFrame
     low_prev_close = (out["Low"] - prev_close).abs()
     true_range = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
     out["atr"] = true_range.rolling(params.atr_period).mean()
+    out["atr_avg"] = out["atr"].rolling(20).mean()
+
+    out["adx"] = _compute_adx(out, params.adx_period)
 
     return out
+
+
+def _compute_adx(df: pd.DataFrame, period: int) -> pd.Series:
+    """Calcula ADX (Average Directional Index) con suavizado de Wilder."""
+    prev_high = df["High"].shift(1)
+    prev_low = df["Low"].shift(1)
+
+    up_move = df["High"] - prev_high
+    down_move = prev_low - df["Low"]
+
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+    prev_close = df["Close"].shift(1)
+    tr = pd.concat(
+        [
+            df["High"] - df["Low"],
+            (df["High"] - prev_close).abs(),
+            (df["Low"] - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+
+    alpha = 1.0 / period
+    atr_w = tr.ewm(alpha=alpha, adjust=False).mean()
+    plus_di = 100 * pd.Series(plus_dm, index=df.index).ewm(alpha=alpha, adjust=False).mean() / atr_w
+    minus_di = 100 * pd.Series(minus_dm, index=df.index).ewm(alpha=alpha, adjust=False).mean() / atr_w
+
+    di_sum = plus_di + minus_di
+    dx = 100 * (plus_di - minus_di).abs() / di_sum.replace(0, np.nan)
+    return dx.ewm(alpha=alpha, adjust=False).mean()
 
 
 def signal(df: pd.DataFrame, params: StrategyParams) -> str:
     """Devuelve "LONG", "SHORT" o "FLAT" para la última barra del DataFrame.
 
-    `df` debe ser el resultado de `compute_indicators`. Si algún indicador
-    necesario es NaN en la última barra (datos insuficientes), devuelve "FLAT".
+    Requiere alineación de EMAs + filtro SMA 200. Si ADX está por debajo de
+    ``min_adx``, devuelve FLAT aunque las EMAs coincidan (evita whipsaws en
+    mercados laterales).
     """
     if df.empty:
         return "FLAT"
 
     last = df.iloc[-1]
-    needed = ("ema_fast", "ema_slow", "sma_trend", "Close")
+    needed = ("ema_fast", "ema_slow", "sma_trend", "Close", "adx")
     if any(col not in df.columns for col in needed):
         return "FLAT"
     if any(pd.isna(last[col]) for col in needed):
+        return "FLAT"
+
+    if last["adx"] < params.min_adx:
         return "FLAT"
 
     if last["ema_fast"] > last["ema_slow"] and last["Close"] > last["sma_trend"]:
@@ -62,6 +97,26 @@ def signal(df: pd.DataFrame, params: StrategyParams) -> str:
     if last["ema_fast"] < last["ema_slow"] and last["Close"] < last["sma_trend"]:
         return "SHORT"
     return "FLAT"
+
+
+def trend_strength(df: pd.DataFrame) -> float:
+    """Fuerza relativa de la tendencia (0-1) basada en separación EMA y ADX.
+
+    Usado para priorizar instrumentos cuando el capital total es limitado.
+    """
+    if df.empty:
+        return 0.0
+    last = df.iloc[-1]
+    if any(col not in df.columns for col in ("ema_fast", "ema_slow", "adx", "Close")):
+        return 0.0
+    if any(pd.isna(last[col]) for col in ("ema_fast", "ema_slow", "adx", "Close")):
+        return 0.0
+    if last["Close"] <= 0:
+        return 0.0
+
+    ema_spread = abs(last["ema_fast"] - last["ema_slow"]) / last["Close"]
+    adx_component = min(last["adx"] / 50.0, 1.0)
+    return round(min(ema_spread * 100 + adx_component * 0.5, 1.0), 4)
 
 
 def trailing_stop(

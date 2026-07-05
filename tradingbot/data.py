@@ -1,14 +1,15 @@
 """Descarga de datos históricos diarios (OHLCV)."""
 from __future__ import annotations
 
+import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-REQUIRED_COLS = ["Open", "High", "Low", "Close", "Volume"]
+log = logging.getLogger("tradingbot")
 
-# Máxima antigüedad (en días calendario) que se tolera para la última barra
-# antes de considerar los datos obsoletos (ver `_check_freshness`).
+REQUIRED_COLS = ["Open", "High", "Low", "Close", "Volume"]
 MAX_DATA_AGE_DAYS = 5
 
 
@@ -17,18 +18,39 @@ def fetch_daily(
     start: str | None = None,
     days: int | None = None,
     validate_freshness: bool = True,
+    retries: int = 3,
+    retry_delay_seconds: float = 2.0,
 ) -> pd.DataFrame:
     """Devuelve un DataFrame diario con columnas Open/High/Low/Close/Volume.
 
-    Usa yfinance (gratis, sin API key). Para el ciclo en vivo basta `days`;
-    para backtests usa `start` (ej. '2015-01-01').
-
-    Si `validate_freshness` es True (default), valida que la última barra no
-    sea más vieja que `MAX_DATA_AGE_DAYS` días calendario respecto a hoy; si
-    lo es, lanza `RuntimeError` (evita operar en vivo con datos obsoletos si
-    yfinance degrada). El backtest, que trabaja con datos históricos, debe
-    llamar con `validate_freshness=False`.
+    Reintenta automáticamente si yfinance falla o devuelve datos vacíos
+    (hasta ``retries`` intentos con espera exponencial).
     """
+    last_error: Exception | None = None
+    for attempt in range(1, max(retries, 1) + 1):
+        try:
+            df = _download_once(symbol, start=start, days=days)
+            if validate_freshness:
+                _check_freshness(df, symbol)
+            return df
+        except Exception as exc:  # noqa: BLE001 - reintentar ante cualquier fallo de red/datos
+            last_error = exc
+            if attempt < retries:
+                wait = retry_delay_seconds * attempt
+                log.warning(
+                    "Intento %d/%d fallido para %s: %s. Reintentando en %.1fs...",
+                    attempt, retries, symbol, exc, wait,
+                )
+                time.sleep(wait)
+
+    raise RuntimeError(f"Sin datos para {symbol} tras {retries} intentos: {last_error}")
+
+
+def _download_once(
+    symbol: str,
+    start: str | None = None,
+    days: int | None = None,
+) -> pd.DataFrame:
     import yfinance as yf
 
     if start:
@@ -40,7 +62,6 @@ def fetch_daily(
     if df is None or df.empty:
         raise RuntimeError(f"Sin datos para {symbol}")
 
-    # yfinance puede devolver columnas MultiIndex (símbolo como segundo nivel)
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
@@ -48,9 +69,6 @@ def fetch_daily(
     missing = set(REQUIRED_COLS) - set(df.columns)
     if missing:
         raise RuntimeError(f"Faltan columnas {missing} en los datos de {symbol}")
-
-    if validate_freshness:
-        _check_freshness(df, symbol)
 
     return df
 

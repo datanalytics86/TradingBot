@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from tradingbot import backtest
-from tradingbot.config import Config, Instrument, RiskParams, StrategyParams
+from tradingbot.config import Config, DataParams, Instrument, RiskParams, StrategyParams
 
 
 def make_trend_df(n: int, slope: float, start_price: float = 100.0, noise: float = 0.3, seed: int = 0) -> pd.DataFrame:
@@ -26,9 +26,12 @@ def make_cfg(symbols=("SPYX", "QQQX")) -> Config:
         mode="paper",
         initial_capital=500.0,
         universe=[Instrument(symbol=s, short_proxy=None) for s in symbols],
-        strategy=StrategyParams(ema_fast=20, ema_slow=50, trend_filter=200, atr_period=14, atr_stop_mult=2.5),
-        risk=RiskParams(risk_per_trade=0.02, max_position_pct=0.45, max_drawdown=0.15),
-        lookback_days=400,
+        strategy=StrategyParams(
+            ema_fast=20, ema_slow=50, trend_filter=200, atr_period=14, atr_stop_mult=2.5,
+            adx_period=14, min_adx=15,
+        ),
+        risk=RiskParams(risk_per_trade=0.02, max_position_pct=0.45, max_total_exposure_pct=0.70, max_drawdown=0.15),
+        data=DataParams(lookback_days=400),
     )
 
 

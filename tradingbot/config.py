@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 HALT_FILE = ROOT / "HALT"
 STATE_FILE = ROOT / "state.json"
 EQUITY_HISTORY_FILE = ROOT / "equity_history.csv"
+LAST_RUN_FILE = ROOT / "last_run.json"
 LOG_DIR = ROOT / "logs"
 LOG_FILE = LOG_DIR / "bot.log"
 
@@ -28,13 +29,25 @@ class StrategyParams:
     trend_filter: int = 200
     atr_period: int = 14
     atr_stop_mult: float = 2.5
+    adx_period: int = 14
+    min_adx: float = 20.0
+    vol_scale_threshold: float = 1.5
+    vol_scale_factor: float = 0.6
 
 
 @dataclass
 class RiskParams:
     risk_per_trade: float = 0.02
     max_position_pct: float = 0.45
+    max_total_exposure_pct: float = 0.70
     max_drawdown: float = 0.15
+
+
+@dataclass
+class DataParams:
+    lookback_days: int = 400
+    retries: int = 3
+    retry_delay_seconds: float = 2.0
 
 
 @dataclass
@@ -44,20 +57,29 @@ class Config:
     universe: list[Instrument] = field(default_factory=list)
     strategy: StrategyParams = field(default_factory=StrategyParams)
     risk: RiskParams = field(default_factory=RiskParams)
-    lookback_days: int = 400
+    data: DataParams = field(default_factory=DataParams)
+
+    @property
+    def lookback_days(self) -> int:
+        return self.data.lookback_days
 
 
 def load_config(path: str | Path | None = None) -> Config:
     path = Path(path) if path else ROOT / "config.yaml"
     raw = yaml.safe_load(path.read_text())
 
+    data_raw = raw.get("data", {})
     cfg = Config(
         mode=raw.get("mode", "paper"),
         initial_capital=float(raw.get("initial_capital", 500)),
         universe=[Instrument(**item) for item in raw.get("universe", [])],
         strategy=StrategyParams(**raw.get("strategy", {})),
         risk=RiskParams(**raw.get("risk", {})),
-        lookback_days=int(raw.get("data", {}).get("lookback_days", 400)),
+        data=DataParams(
+            lookback_days=int(data_raw.get("lookback_days", 400)),
+            retries=int(data_raw.get("retries", 3)),
+            retry_delay_seconds=float(data_raw.get("retry_delay_seconds", 2.0)),
+        ),
     )
 
     if cfg.mode not in ("paper", "live"):
@@ -68,6 +90,8 @@ def load_config(path: str | Path | None = None) -> Config:
         raise ValueError("risk_per_trade debe estar entre 0 y 5%")
     if not 0 < cfg.risk.max_drawdown <= 0.5:
         raise ValueError("max_drawdown debe estar entre 0 y 50%")
+    if not 0 < cfg.risk.max_total_exposure_pct <= 1.0:
+        raise ValueError("max_total_exposure_pct debe estar entre 0 y 100%")
     if cfg.strategy.ema_fast >= cfg.strategy.ema_slow:
         raise ValueError("ema_fast debe ser menor que ema_slow")
     return cfg

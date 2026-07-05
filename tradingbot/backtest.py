@@ -51,7 +51,7 @@ def _simulate_symbol(
     indicadores estén completos, el capital asignado permanece en cash
     (sin invertir).
     """
-    required = ("ema_fast", "ema_slow", "sma_trend", "atr")
+    required = ("ema_fast", "ema_slow", "sma_trend", "atr", "adx")
     valid_mask = df_ind[list(required)].notna().all(axis=1)
     if not valid_mask.any():
         return pd.Series(initial_alloc, index=df_ind.index), []

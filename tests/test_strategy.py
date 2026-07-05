@@ -8,7 +8,10 @@ import pytest
 from tradingbot.config import StrategyParams
 from tradingbot.strategy import compute_indicators, signal, trailing_stop
 
-PARAMS = StrategyParams(ema_fast=20, ema_slow=50, trend_filter=200, atr_period=14, atr_stop_mult=2.5)
+PARAMS = StrategyParams(
+    ema_fast=20, ema_slow=50, trend_filter=200, atr_period=14, atr_stop_mult=2.5,
+    adx_period=14, min_adx=15,
+)
 
 
 def make_trend_df(n: int, slope: float, start_price: float = 100.0, noise: float = 0.0, seed: int = 0) -> pd.DataFrame:
@@ -29,8 +32,15 @@ def make_trend_df(n: int, slope: float, start_price: float = 100.0, noise: float
 def test_indicators_have_expected_columns():
     df = make_trend_df(60, slope=0.1)
     out = compute_indicators(df, PARAMS)
-    for col in ("ema_fast", "ema_slow", "sma_trend", "atr"):
+    for col in ("ema_fast", "ema_slow", "sma_trend", "atr", "adx", "atr_avg"):
         assert col in out.columns
+
+
+def test_signal_flat_when_adx_below_threshold():
+    df = make_trend_df(300, slope=0.5, noise=0.2)
+    ind = compute_indicators(df, PARAMS)
+    ind.iloc[-1, ind.columns.get_loc("adx")] = 10.0
+    assert signal(ind, PARAMS) == "FLAT"
 
 
 def test_signal_long_in_sustained_uptrend():

@@ -10,12 +10,15 @@ import pandas as pd
 import pytest
 
 from tradingbot import main
-from tradingbot.config import Config, Instrument, RiskParams, StrategyParams
+from tradingbot.config import Config, DataParams, Instrument, RiskParams, StrategyParams
 from tradingbot.risk import position_size
 from tradingbot.strategy import compute_indicators, trailing_stop
 
-STRATEGY = StrategyParams(ema_fast=20, ema_slow=50, trend_filter=200, atr_period=14, atr_stop_mult=2.5)
-RISK = RiskParams(risk_per_trade=0.02, max_position_pct=0.45, max_drawdown=0.15)
+STRATEGY = StrategyParams(
+    ema_fast=20, ema_slow=50, trend_filter=200, atr_period=14, atr_stop_mult=2.5,
+    adx_period=14, min_adx=15,
+)
+RISK = RiskParams(risk_per_trade=0.02, max_position_pct=0.45, max_total_exposure_pct=0.70, max_drawdown=0.15)
 
 
 def make_trend_df(n: int, slope: float, start_price: float = 100.0, noise: float = 0.0, seed: int = 0) -> pd.DataFrame:
@@ -51,7 +54,7 @@ def make_cfg(inst: Instrument) -> Config:
         universe=[inst],
         strategy=STRATEGY,
         risk=RISK,
-        lookback_days=400,
+        data=DataParams(lookback_days=400),
     )
 
 
@@ -90,11 +93,17 @@ class FakeBroker:
         return dict(self.positions)
 
 
-def _fake_fetch(data: dict[str, pd.DataFrame]):
-    def _fetch(symbol, days=None, validate_freshness=True):
+def _fake_fetch_daily(data: dict[str, pd.DataFrame]):
+    def _fetch(symbol, cfg, **kwargs):
         return data[symbol].copy()
 
     return _fetch
+
+
+def _run_process(inst, cfg, broker, state):
+    exposure = {"total": 0.0}
+    cache: dict[str, float] = {}
+    main._process_instrument(inst, cfg, broker, state, exposure, cache)
 
 
 # ---------------------------------------------------------------------------
@@ -110,12 +119,12 @@ def test_short_signal_sizes_using_proxy_price_and_atr(monkeypatch):
     sh_df = make_trend_df(300, slope=0.02, start_price=13.0, noise=0.05, seed=2)  # proxy: precio/escala muy distintos
 
     data = {"SPY": spy_df, "SH": sh_df}
-    monkeypatch.setattr(main, "fetch_daily", _fake_fetch(data))
+    monkeypatch.setattr(main, "_fetch_daily", _fake_fetch_daily(data))
 
     broker = FakeBroker(equity=500.0)
     state: dict = {"positions": {}}
 
-    main._process_instrument(inst, cfg, broker, state)
+    _run_process(inst, cfg, broker, state)
 
     assert len(broker.orders) == 1
     order_symbol, order_qty, order_side = broker.orders[0]
@@ -161,14 +170,14 @@ def test_long_to_short_to_flat_updates_traded_symbol(monkeypatch):
     flat_df = make_flat_df(300, start_price=150.0, seed=0)
 
     data: dict[str, pd.DataFrame] = {}
-    monkeypatch.setattr(main, "fetch_daily", _fake_fetch(data))
+    monkeypatch.setattr(main, "_fetch_daily", _fake_fetch_daily(data))
 
     broker = FakeBroker(equity=500.0)
     state: dict = {"positions": {}}
 
     # Fase 1: señal LONG -> abre SPY.
     data["SPY"] = long_df
-    main._process_instrument(inst, cfg, broker, state)
+    _run_process(inst, cfg, broker, state)
     assert state["positions"]["SPY"]["traded_symbol"] == "SPY"
     assert state["positions"]["SPY"]["signal_direction"] == "LONG"
     assert broker.get_position("SPY") != 0
@@ -176,7 +185,7 @@ def test_long_to_short_to_flat_updates_traded_symbol(monkeypatch):
     # Fase 2: señal cambia a SHORT -> cierra SPY, abre el proxy SH en el mismo ciclo.
     data["SPY"] = short_df
     data["SH"] = sh_df
-    main._process_instrument(inst, cfg, broker, state)
+    _run_process(inst, cfg, broker, state)
     assert "SPY" in broker.closed
     assert broker.get_position("SPY") == 0
     assert broker.get_position("SH") != 0
@@ -185,7 +194,7 @@ def test_long_to_short_to_flat_updates_traded_symbol(monkeypatch):
 
     # Fase 3: señal FLAT -> cierra SH, sin posición.
     data["SPY"] = flat_df
-    main._process_instrument(inst, cfg, broker, state)
+    _run_process(inst, cfg, broker, state)
     assert "SH" in broker.closed
     assert broker.get_position("SH") == 0
     assert state["positions"]["SPY"]["traded_symbol"] is None
@@ -203,7 +212,7 @@ def test_reconcile_positions_adopts_orphan_without_trading(monkeypatch):
 
     sh_df = make_trend_df(300, slope=0.02, start_price=13.0, noise=0.05, seed=7)
     data = {"SH": sh_df}
-    monkeypatch.setattr(main, "fetch_daily", _fake_fetch(data))
+    monkeypatch.setattr(main, "_fetch_daily", _fake_fetch_daily(data))
 
     broker = FakeBroker(equity=500.0)
     broker.positions["SH"] = 10.0  # el broker tiene una posición que el estado desconoce
@@ -243,7 +252,7 @@ def test_run_cycle_skips_new_orders_for_adopted_symbol_this_cycle(monkeypatch, t
     broker = FakeBroker(equity=500.0)
     broker.positions["SH"] = 5.0  # posición huérfana en el broker
 
-    monkeypatch.setattr(main, "fetch_daily", _fake_fetch(data))
+    monkeypatch.setattr(main, "_fetch_daily", _fake_fetch_daily(data))
     monkeypatch.setattr(main, "load_config", lambda: cfg)
     monkeypatch.setattr(main, "AlpacaBroker", lambda paper=True: broker)
     monkeypatch.setattr(main, "send_telegram", lambda text: False)
@@ -251,6 +260,7 @@ def test_run_cycle_skips_new_orders_for_adopted_symbol_this_cycle(monkeypatch, t
     monkeypatch.setattr(main, "HALT_FILE", tmp_path / "HALT")
     monkeypatch.setattr(main, "EQUITY_HISTORY_FILE", tmp_path / "equity_history.csv")
     monkeypatch.setattr(main, "LOG_FILE", tmp_path / "logs" / "bot.log")
+    monkeypatch.setattr(main, "LAST_RUN_FILE", tmp_path / "last_run.json")
 
     exit_code = main.run_cycle()
 

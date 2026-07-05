@@ -19,7 +19,7 @@ from __future__ import annotations
 import csv
 import json
 
-from tradingbot.config import EQUITY_HISTORY_FILE, HALT_FILE, STATE_FILE, Config, load_config
+from tradingbot.config import EQUITY_HISTORY_FILE, HALT_FILE, LAST_RUN_FILE, STATE_FILE, Config, load_config
 
 
 def _print_header(title: str) -> None:
@@ -104,6 +104,22 @@ def _report_equity_history(n: int = 10) -> None:
         prev_equity = equity
 
 
+def _report_last_run() -> None:
+    if not LAST_RUN_FILE.exists():
+        return
+    try:
+        data = json.loads(LAST_RUN_FILE.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"No se pudo leer last_run.json: {exc}")
+        return
+    print(f"Último ciclo: {data.get('timestamp', 'n/d')} | estado={data.get('status', 'n/d')}")
+    errs = data.get("errors") or []
+    if errs:
+        print("Errores del último ciclo:")
+        for e in errs:
+            print(f"  {e.get('symbol')}: {e.get('message')}")
+
+
 def _report_halt() -> None:
     if not HALT_FILE.exists():
         return
@@ -131,6 +147,8 @@ def main() -> None:
     _report_state()
     print("-" * 60)
     _report_equity_history()
+    print("-" * 60)
+    _report_last_run()
 
     _report_halt()
 
