@@ -12,10 +12,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
-$Python = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $Python) {
-    $Python = (Get-Command python3 -ErrorAction SilentlyContinue).Source
+# Preferir el intérprete real (evitar el stub de Microsoft Store en WindowsApps).
+$candidates = @(
+    (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
+    (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
+) | Where-Object { $_ -and $_ -notmatch '\\WindowsApps\\' }
+
+if (-not $candidates) {
+    $localPy = Get-ChildItem "$env:LOCALAPPDATA\Python" -Recurse -Filter "python.exe" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match 'pythoncore' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1 -ExpandProperty FullName
+    if ($localPy) { $candidates = @($localPy) }
 }
+
+$Python = $candidates | Select-Object -First 1
 if (-not $Python) {
     throw "No se encontró python en PATH. Instala Python 3.11+ primero."
 }
