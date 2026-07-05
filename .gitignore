@@ -1,9 +1,13 @@
 __pycache__/
 *.pyc
 .env
-state.json
-HALT
 .pytest_cache/
 *.egg-info/
 venv/
 .venv/
+logs/
+
+# state.json, HALT y equity_history.csv SÍ se versionan a propósito: el
+# workflow de GitHub Actions (.github/workflows/trading-bot.yml) los
+# commitea de vuelta al repo después de cada ciclo, para persistir el
+# estado del bot entre ejecuciones (los runners de Actions son efímeros).

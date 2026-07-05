@@ -51,20 +51,44 @@ Nasdaq-100) cuando la señal es `SHORT`. Comprar un ETF inverso es una
 operación long normal (no requiere margin ni permisos especiales) y da una
 exposición inversa aproximada al índice subyacente en el día.
 
+### Sizing y stop de una posición en el ETF inverso
+
+La señal (`LONG`/`SHORT`) se calcula sobre el símbolo subyacente (ej. `SPY`),
+pero cuando la señal es `SHORT` la orden real se envía sobre el **proxy**
+(ej. `SH`). Es importante no confundir ambos precios: `SPY` puede cotizar a
+~USD 550 mientras que `SH` cotiza a ~USD 13, y sus ATR también son muy
+distintos.
+
+Por eso, tanto el **tamaño de la posición** (`position_size`) como el
+**stop inicial y el trailing stop** de una posición en el proxy se calculan
+siempre con el precio y el ATR **del propio proxy** (se descargan y calculan
+sus propios indicadores), nunca con los del subyacente. La posición que abre
+el broker siempre es una compra en largo (se opere el subyacente o el
+proxy), así que el trailing stop se calcula siempre con dirección `"LONG"`
+sobre el símbolo realmente operado (`traded_symbol`). El estado
+(`state.json`) guarda, por cada símbolo del universo, tanto el
+`traded_symbol` (qué se compró realmente) como el `signal_direction` (la
+señal original, `LONG` o `SHORT`, que originó esa posición), para poder
+reconciliar correctamente una transición de señal (por ejemplo `LONG` en
+`SPY` que pasa a `SHORT`: se cierra `SPY` y se abre `SH` en el mismo ciclo).
+
 ## Arquitectura y módulos
 
 ```
 tradingbot/
   config.py    - Carga y validación de config.yaml y de las claves de Alpaca (.env)
-  data.py      - Descarga de datos diarios OHLCV vía yfinance
+  data.py      - Descarga de datos diarios OHLCV vía yfinance (con validación de frescura)
   strategy.py  - Indicadores (EMA/SMA/ATR) y lógica de señal + trailing stop
   risk.py      - Tamaño de posición (position sizing) y circuit breaker
   broker.py    - Wrapper sobre Alpaca (alpaca-py), import perezoso
   backtest.py  - Motor de backtest histórico (python3 -m tradingbot.backtest)
   main.py      - Ciclo diario en vivo/paper (python3 -m tradingbot.main)
+  report.py    - Reporte de estado en texto (python3 -m tradingbot.report)
+  notify.py    - Notificaciones opcionales por Telegram
 tests/         - Tests unitarios con datos sintéticos (sin red)
 config.yaml    - Toda la configuración de estrategia/riesgo/universo
-.env.example   - Plantilla de credenciales de Alpaca
+.env.example   - Plantilla de credenciales de Alpaca y de Telegram
+.github/workflows/trading-bot.yml - Ejecución automática diaria vía GitHub Actions
 ```
 
 El diseño separa estrategia (pura, sin I/O) de ejecución (broker, datos), lo
@@ -123,27 +147,181 @@ posición inversa que se toma en vivo.
 python3 -m tradingbot.main
 ```
 
-Este comando hace un único ciclo: lee el estado (`state.json`), consulta el
-equity de la cuenta, revisa el circuit breaker, y para cada símbolo del
-universo calcula la señal del día y reconcilia la posición (abre, cierra o
-ajusta el trailing stop). Estado (`state.json`) y archivo de parada
-(`HALT`) se guardan en la raíz del repo y **no se versionan** (ver
-`.gitignore`).
+Este comando hace un único ciclo:
+
+1. Lee el estado (`state.json`) y consulta el equity de la cuenta.
+2. Revisa el circuit breaker (si se activa, cierra todo, escribe `HALT` y
+   notifica por Telegram si está configurado).
+3. **Reconcilia el estado contra el broker**: si el broker tiene posiciones
+   abiertas en símbolos del universo (o sus proxies) que el estado no
+   conocía (por ejemplo, tras una intervención manual o un bug previo), las
+   adopta al estado con un stop inicializado desde el precio actual, loguea
+   un warning, y **no opera nada nuevo sobre ellas ese ciclo**; se gestionan
+   normalmente a partir del ciclo siguiente.
+4. Para cada símbolo restante del universo, calcula la señal del día y
+   reconcilia la posición (abre, cierra o ajusta el trailing stop).
+5. Guarda el estado (escritura atómica, ver más abajo), appendea una fila a
+   `equity_history.csv` y envía un resumen por Telegram (si está
+   configurado).
+
+Estado (`state.json`) y archivo de parada (`HALT`) se guardan en la raíz del
+repo. A diferencia de una versión anterior, **sí se versionan** (no están en
+`.gitignore`): el workflow de GitHub Actions (ver más abajo) los commitea de
+vuelta al repo después de cada ciclo, ya que los runners de Actions son
+efímeros y no persisten archivos entre ejecuciones por sí solos.
+
+### Robustez operativa
+
+- **Escritura atómica de `state.json`**: se escribe primero a un archivo
+  temporal en el mismo directorio y luego se reemplaza con `os.replace()`,
+  para no dejar nunca el archivo truncado/corrupto si el proceso se
+  interrumpe a mitad de la escritura.
+- **Validación de frescura de datos**: `fetch_daily` valida que la última
+  barra descargada no sea más vieja que 5 días calendario; si lo es, lanza
+  un error claro en vez de operar con datos obsoletos (por ejemplo, si
+  yfinance degrada o devuelve datos parciales). El backtest, que trabaja
+  con datos históricos por diseño, desactiva esta validación
+  (`validate_freshness=False`).
+- **Reconciliación estado↔broker**: ver el punto 3 más arriba.
 
 ### Ejemplo de crontab
 
-Para correrlo automáticamente cada día de mercado, después del cierre de
-NYSE (16:00 ET = 20:00 UTC en horario estándar, 20:30 tras el cierre para
-dar margen a que se asienten los datos de fin de día; se usa 21:30 UTC como
+Si preferís correrlo en un servidor propio en vez de GitHub Actions, para
+correrlo automáticamente cada día de mercado, después del cierre de NYSE
+(16:00 ET = 20:00 UTC en horario estándar, 20:30 tras el cierre para dar
+margen a que se asienten los datos de fin de día; se usa 21:30 UTC como
 margen extra que también cubre el horario de verano):
 
 ```cron
-30 21 * * 1-5 cd /ruta/al/repo && /usr/bin/python3 -m tradingbot.main >> logs/bot.log 2>&1
+30 21 * * 1-5 cd /ruta/al/repo && /usr/bin/python3 -m tradingbot.main
 ```
 
 Ajusta la ruta, el intérprete de Python y el offset horario según tu
 servidor (mejor aún si el servidor está en UTC, para no preocuparte por el
-horario de verano de EE.UU.).
+horario de verano de EE.UU.). No hace falta redirigir la salida a un archivo
+de logs a mano: el bot ya loguea a consola **y** a `logs/bot.log`
+(rotativo) por su cuenta (ver "Logs y monitoreo" más abajo).
+
+## Logs, reporte y notificaciones
+
+### Logs a archivo
+
+Además de la consola, cada ciclo escribe a `logs/bot.log` usando un
+`RotatingFileHandler` (1 MB por archivo, hasta 3 backups:
+`bot.log`, `bot.log.1`, `bot.log.2`, `bot.log.3`). El directorio `logs/` se
+crea automáticamente si no existe, y está en `.gitignore` (no se versiona).
+
+### Historial de equity
+
+Al final de cada ciclo exitoso, el bot appendea una fila
+`fecha_iso,equity` a `equity_history.csv` en la raíz del repo (crea el
+archivo con encabezado si no existe). A diferencia de `logs/`, este archivo
+**sí se versiona**: es lo que permite ver la evolución del equity a lo
+largo del tiempo aunque el bot corra en un runner efímero de GitHub Actions.
+
+### Comando de reporte
+
+```bash
+python3 -m tradingbot.report
+```
+
+Sin argumentos, imprime un resumen del estado actual del bot:
+
+- Modo (`paper`/`live`), equity actual y posiciones reales según el broker
+  (si hay credenciales de Alpaca configuradas y `alpaca-py` instalado; si
+  no, lo indica y sigue mostrando la parte local sin fallar).
+- El estado local del bot: qué símbolos cree tener abiertos, qué proxy
+  operó en cada caso y el stop vigente.
+- Las últimas 10 filas de `equity_history.csv`, con la variación porcentual
+  entre filas consecutivas.
+- Si existe el archivo `HALT`, lo muestra en grande junto con su contenido.
+
+Funciona sin `alpaca-py` instalado (el import es perezoso) y sin
+credenciales: en ese caso simplemente informa que no pudo consultar el
+broker y continúa con el resto del reporte.
+
+### Notificaciones por Telegram (opcionales)
+
+El bot puede avisar por Telegram al final de cada ciclo (resumen de
+equity, señales y órdenes ejecutadas) y **siempre** que se activa el
+circuit breaker o que el archivo `HALT` impide correr el ciclo. Es
+completamente opcional: si no configurás las variables de entorno, el bot
+simplemente no envía nada (no-op silencioso, no falla).
+
+Cómo crear el bot de Telegram y obtener las variables:
+
+1. Hablá con [@BotFather](https://t.me/BotFather) en Telegram y enviá
+   `/newbot`. Seguí las instrucciones (nombre y username del bot) y
+   guardá el **token** que te da al final: eso es `TELEGRAM_BOT_TOKEN`.
+2. Enviale cualquier mensaje a tu bot recién creado (para que Telegram
+   registre la conversación).
+3. Obtené tu `chat_id`: abrí en el navegador
+   `https://api.telegram.org/bot<TU_TOKEN>/getUpdates` (reemplazando
+   `<TU_TOKEN>`) después de haberle escrito al bot, y buscá el campo
+   `"chat":{"id": ...}` en la respuesta JSON. Ese número es
+   `TELEGRAM_CHAT_ID`.
+4. Completá `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` en tu `.env` (ver
+   `.env.example`) para correr en local, o como *secrets* del repo si
+   usás GitHub Actions (ver más abajo).
+
+`notify.py` usa únicamente `urllib` de la librería estándar (sin
+dependencias nuevas) y nunca deja que un fallo de red rompa el ciclo del
+bot: cualquier error se atrapa y se loguea como warning.
+
+## Ejecución automática con GitHub Actions
+
+El repo incluye un workflow que corre el ciclo diario del bot
+automáticamente, sin necesidad de un servidor propio: `.github/workflows/trading-bot.yml`
+(si en tu copia del repo aparece en `deploy/trading-bot.yml` en vez de
+`.github/workflows/`, movelo manualmente a `.github/workflows/` — puede
+pasar si el token usado para generarlo no tenía permiso `workflow`; ver
+comentario al principio del archivo).
+
+El workflow:
+
+- Se dispara solo (`schedule`) con el cron `35 21 * * 1-5` (lunes a
+  viernes, 21:35 UTC — después del cierre de NYSE), y también puede
+  lanzarse a mano desde la pestaña **Actions** del repo
+  (`workflow_dispatch`).
+- Instala las dependencias (`pip install -r requirements.txt`) y corre
+  `python3 -m tradingbot.main`.
+- Al terminar (haya ido bien o mal: `if: always()`), si `state.json` o
+  `equity_history.csv` cambiaron (o se creó `HALT`), los commitea de vuelta
+  al mismo branch con el mensaje `Actualiza estado del bot [skip ci]` y los
+  pushea. Si no hay cambios, no crea un commit vacío.
+
+### Configurar los secrets en GitHub
+
+En el repo, andá a **Settings → Secrets and variables → Actions → New
+repository secret** y creá estos 4 secrets:
+
+| Secret                 | Valor                                                    |
+|-------------------------|----------------------------------------------------------|
+| `ALPACA_API_KEY`        | API key de tu cuenta de Alpaca (paper o live)             |
+| `ALPACA_SECRET_KEY`     | Secret key de tu cuenta de Alpaca                        |
+| `TELEGRAM_BOT_TOKEN`    | Token del bot de Telegram (opcional, ver arriba)          |
+| `TELEGRAM_CHAT_ID`      | Chat ID de Telegram (opcional, ver arriba)                |
+
+Si no querés notificaciones de Telegram, simplemente no crees esos dos
+secrets: el bot corre igual, sin notificar (no-op silencioso).
+
+### Notas importantes sobre el workflow
+
+- **Corre solo días hábiles** (lunes a viernes, `1-5` en el cron). Los
+  feriados de mercado (que no coinciden siempre con fines de semana) no
+  están filtrados explícitamente: el bot simplemente no encontrará barras
+  nuevas relevantes o la validación de frescura de datos podría fallar en
+  casos extremos; no es un problema práctico para una estrategia diaria.
+- **El `schedule` de GitHub Actions puede retrasarse** varios minutos (a
+  veces más, en horas de carga alta de la infraestructura de Actions)
+  respecto a la hora exacta configurada en el cron. Para una estrategia de
+  swing/diaria como esta, ese retraso es irrelevante.
+- El workflow necesita permiso de escritura sobre el repo
+  (`permissions: contents: write`) para poder commitear `state.json` y
+  `equity_history.csv` de vuelta. Si tu organización restringe los permisos
+  por defecto del `GITHUB_TOKEN`, asegurate de que el workflow tenga
+  permiso de escritura habilitado (Settings → Actions → General →
+  Workflow permissions → "Read and write permissions").
 
 ## Pipeline recomendado: backtest -> paper -> real
 
