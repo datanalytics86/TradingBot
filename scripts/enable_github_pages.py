@@ -50,26 +50,19 @@ def _api(method: str, path: str, token: str, body: dict | None = None) -> dict:
 
 def main() -> int:
     token = _token()
-    body = {
-        "build_type": "legacy",
-        "source": {"branch": BRANCH, "path": "/docs"},
-    }
+    # GitHub Actions deploy (workflow deploy-dashboard.yml) publica /docs.
+    body = {"build_type": "workflow"}
     try:
         result = _api("POST", f"repos/{REPO}/pages", token, body)
-        print("GitHub Pages habilitado:")
+        print("GitHub Pages habilitado (via Actions):")
         print(f"  URL: {result.get('html_url', 'https://datanalytics86.github.io/TradingBot/')}")
         return 0
     except RuntimeError as exc:
         msg = str(exc)
         if "409" in msg or "already exists" in msg.lower():
-            _api(
-                "PUT",
-                f"repos/{REPO}/pages",
-                token,
-                body,
-            )
+            _api("PUT", f"repos/{REPO}/pages", token, body)
             status = _api("GET", f"repos/{REPO}/pages", token)
-            print("GitHub Pages actualizado:")
+            print("GitHub Pages actualizado (via Actions):")
             print(f"  URL: {status.get('html_url', 'https://datanalytics86.github.io/TradingBot/')}")
             print(f"  Estado: {status.get('status', 'n/d')}")
             return 0
