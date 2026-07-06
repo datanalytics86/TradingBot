@@ -7,6 +7,11 @@ on:
     - cron: "35 21 * * 1-5"
   workflow_dispatch:
 
+# Evita ejecuciones solapadas si el runner anterior tarda o se re-dispara el workflow.
+concurrency:
+  group: trading-bot-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -79,6 +84,26 @@ jobs:
             git pull --rebase origin "${{ github.ref_name }}"
             git push
           fi
+
+      - name: Notificar fallo de push de estado
+        if: failure() && steps.bot.outcome == 'success'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            python3 -c "
+          import json, os, urllib.request
+          msg = 'TradingBot: el ciclo OK pero fallo el push de state.json a GitHub. Revisa permisos del workflow.'
+          payload = json.dumps({'chat_id': os.environ['TELEGRAM_CHAT_ID'], 'text': msg}).encode()
+          req = urllib.request.Request(
+              f\"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage\",
+              data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+          try:
+              urllib.request.urlopen(req, timeout=10)
+          except Exception:
+              pass
+          "
 
       - name: Fallar el job si el bot falló
         if: steps.bot.outcome == 'failure'

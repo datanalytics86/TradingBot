@@ -20,6 +20,7 @@ def compute_indicators(df: pd.DataFrame, params: StrategyParams) -> pd.DataFrame
     - ``sma_trend``: SMA de `params.trend_filter` periodos sobre Close.
     - ``atr``: media simple del True Range sobre `params.atr_period` periodos.
     - ``adx``: fuerza de tendencia (ADX) sobre `params.adx_period` periodos.
+    - ``plus_di`` / ``minus_di``: componentes direccionales del ADX.
     - ``atr_avg``: media móvil de 20 periodos del ATR (para scaling de vol).
     """
     out = df.copy()
@@ -36,13 +37,16 @@ def compute_indicators(df: pd.DataFrame, params: StrategyParams) -> pd.DataFrame
     out["atr"] = true_range.rolling(params.atr_period).mean()
     out["atr_avg"] = out["atr"].rolling(20).mean()
 
-    out["adx"] = _compute_adx(out, params.adx_period)
+    plus_di, minus_di, adx = _compute_dmi(out, params.adx_period)
+    out["plus_di"] = plus_di
+    out["minus_di"] = minus_di
+    out["adx"] = adx
 
     return out
 
 
-def _compute_adx(df: pd.DataFrame, period: int) -> pd.Series:
-    """Calcula ADX (Average Directional Index) con suavizado de Wilder."""
+def _compute_dmi(df: pd.DataFrame, period: int) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Calcula +DI, -DI y ADX con suavizado de Wilder."""
     prev_high = df["High"].shift(1)
     prev_low = df["Low"].shift(1)
 
@@ -69,7 +73,8 @@ def _compute_adx(df: pd.DataFrame, period: int) -> pd.Series:
 
     di_sum = plus_di + minus_di
     dx = 100 * (plus_di - minus_di).abs() / di_sum.replace(0, np.nan)
-    return dx.ewm(alpha=alpha, adjust=False).mean()
+    adx = dx.ewm(alpha=alpha, adjust=False).mean()
+    return plus_di, minus_di, adx
 
 
 def signal(df: pd.DataFrame, params: StrategyParams) -> str:
@@ -92,10 +97,18 @@ def signal(df: pd.DataFrame, params: StrategyParams) -> str:
     if last["adx"] < params.min_adx:
         return "FLAT"
 
+    plus_di = last.get("plus_di")
+    minus_di = last.get("minus_di")
+    if params.use_di_filter:
+        if plus_di is None or minus_di is None or pd.isna(plus_di) or pd.isna(minus_di):
+            return "FLAT"
+
     if last["ema_fast"] > last["ema_slow"] and last["Close"] > last["sma_trend"]:
-        return "LONG"
+        if not params.use_di_filter or plus_di > minus_di:
+            return "LONG"
     if last["ema_fast"] < last["ema_slow"] and last["Close"] < last["sma_trend"]:
-        return "SHORT"
+        if not params.use_di_filter or minus_di > plus_di:
+            return "SHORT"
     return "FLAT"
 
 

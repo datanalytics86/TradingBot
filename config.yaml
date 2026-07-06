@@ -20,16 +20,19 @@ strategy:
   ema_slow: 50
   trend_filter: 200      # SMA de 200 días: solo longs sobre ella, solo shorts bajo ella
   atr_period: 14
-  atr_stop_mult: 2.5     # stop de seguimiento a 2.5 ATR del cierre
+  atr_stop_mult: 2.25    # stop más ajustado: deja correr ganadores, corta antes
   adx_period: 14
-  min_adx: 20            # solo opera si hay tendencia clara (evita mercados laterales)
+  min_adx: 22            # filtro más estricto: evita whipsaws en mercados laterales
+  use_di_filter: true    # LONG solo si +DI > -DI; SHORT solo si -DI > +DI
   vol_scale_threshold: 1.5 # reduce tamaño si ATR > 1.5x su media de 20 días
   vol_scale_factor: 0.6    # factor de reducción en alta volatilidad
 
 risk:
   risk_per_trade: 0.02     # 2% del equity arriesgado por operación
-  max_position_pct: 0.35   # ninguna posición individual supera el 35% del equity
-  max_total_exposure_pct: 0.70  # tope duro de exposición total (suma de posiciones)
+  max_position_pct: 0.40   # tope por posición (más capital en mejores señales)
+  max_total_exposure_pct: 0.80  # más exposición cuando hay tendencias claras
+  max_active_positions: 2  # concentra capital en las 2 tendencias más fuertes
+  strength_size_floor: 0.55 # posiciones débiles usan al menos 55% del tamaño base
   max_drawdown: 0.15       # circuit breaker: si el equity cae 15% desde su máximo,
                            # se liquida todo y el bot se apaga (crea archivo HALT)
 

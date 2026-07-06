@@ -12,15 +12,25 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
-# Preferir el intérprete real (evitar el stub de Microsoft Store en WindowsApps).
-$candidates = @(
+# Preferir venv del proyecto, luego PATH, luego instalaciones locales.
+$candidates = @()
+$venvPy = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+if (Test-Path $venvPy) {
+    $candidates += $venvPy
+}
+$candidates += @(
     (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
     (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
 ) | Where-Object { $_ -and $_ -notmatch '\\WindowsApps\\' }
 
 if (-not $candidates) {
-    $localPy = Get-ChildItem "$env:LOCALAPPDATA\Python" -Recurse -Filter "python.exe" -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match 'pythoncore' } |
+    $searchRoots = @(
+        "$env:LOCALAPPDATA\Programs\Python",
+        "$env:LOCALAPPDATA\Python"
+    )
+    $localPy = $searchRoots |
+        ForEach-Object { Get-ChildItem $_ -Recurse -Filter "python.exe" -ErrorAction SilentlyContinue } |
+        Where-Object { $_.FullName -notmatch '\\WindowsApps\\' } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1 -ExpandProperty FullName
     if ($localPy) { $candidates = @($localPy) }

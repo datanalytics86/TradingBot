@@ -31,8 +31,8 @@ import pandas as pd
 
 from tradingbot.config import Config, RiskParams, StrategyParams, load_config
 from tradingbot.data import fetch_daily
-from tradingbot.risk import position_size
-from tradingbot.strategy import compute_indicators, signal, trailing_stop
+from tradingbot.risk import apply_volatility_scaling, position_size
+from tradingbot.strategy import compute_indicators, signal, trailing_stop, trend_strength
 
 DEFAULT_SLIPPAGE = 0.0005  # 0.05% por lado
 TRADING_DAYS_PER_YEAR = 252
@@ -111,9 +111,14 @@ def _simulate_symbol(
 
         if position is None and sig in ("LONG", "SHORT") and has_next:
             atr_now = row["atr"]
+            atr_avg = float(row.get("atr_avg") or atr_now)
             stop_distance = strategy.atr_stop_mult * atr_now
             raw_price = next_open
             qty = position_size(cash, raw_price, stop_distance, risk)
+            qty = apply_volatility_scaling(qty, atr_now, atr_avg, strategy)
+            strength = trend_strength(df_ind.iloc[: i + 1])
+            floor = risk.strength_size_floor
+            qty = round(qty * (floor + (1.0 - floor) * strength), 3)
             if qty > 0:
                 if sig == "LONG":
                     entry_price = raw_price * (1 + slippage)

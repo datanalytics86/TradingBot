@@ -219,6 +219,15 @@ def _empty_sym_state() -> dict:
     return {"direction": None, "stop": None, "traded_symbol": None, "signal_direction": None}
 
 
+def _count_active_positions(positions_state: dict) -> int:
+    return sum(1 for s in positions_state.values() if s.get("traded_symbol"))
+
+
+def _strength_multiplier(strength: float, risk) -> float:
+    floor = risk.strength_size_floor
+    return floor + (1.0 - floor) * max(0.0, min(strength, 1.0))
+
+
 def _process_instrument(
     inst: Instrument,
     cfg: Config,
@@ -296,6 +305,15 @@ def _process_instrument(
 
     # 2) Si tras el paso anterior no hay posición y el objetivo es LONG/SHORT, abrir.
     if sym_state.get("traded_symbol") is None and target_symbol is not None:
+        active_positions = _count_active_positions(positions_state)
+        if active_positions >= cfg.risk.max_active_positions:
+            log.info(
+                "Tope de posiciones activas (%d/%d), no abre %s",
+                active_positions, cfg.risk.max_active_positions, inst.symbol,
+            )
+            positions_state[inst.symbol] = sym_state
+            return summary
+
         entry_close, entry_atr = _reference_data(target_symbol, inst.symbol, df_ind, last, cfg)
         price_cache[target_symbol] = entry_close
         equity = broker.get_equity()
@@ -303,6 +321,7 @@ def _process_instrument(
         atr_avg = float(last.get("atr_avg") or entry_atr)
         qty = position_size(equity, entry_close, stop_distance, cfg.risk)
         qty = apply_volatility_scaling(qty, entry_atr, atr_avg, cfg.strategy)
+        qty = round(qty * _strength_multiplier(strength, cfg.risk), 3)
         proposed_notional = qty * entry_close
         allowed_notional = cap_by_total_exposure(
             equity, exposure_state["total"], proposed_notional, cfg.risk,
@@ -485,7 +504,7 @@ def run_cycle() -> int:
         _notify_safe("⚠️ Ciclo con errores\n" + "\n".join(lines))
     else:
         log.info("Ciclo diario completado sin errores")
-        _notify_safe("\n".join(lines))
+        _notify_safe("✅ " + "\n".join(lines))
 
     return 1 if errors else 0
 

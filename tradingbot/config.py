@@ -31,6 +31,7 @@ class StrategyParams:
     atr_stop_mult: float = 2.5
     adx_period: int = 14
     min_adx: float = 20.0
+    use_di_filter: bool = True
     vol_scale_threshold: float = 1.5
     vol_scale_factor: float = 0.6
 
@@ -41,6 +42,8 @@ class RiskParams:
     max_position_pct: float = 0.45
     max_total_exposure_pct: float = 0.70
     max_drawdown: float = 0.15
+    max_active_positions: int = 2
+    strength_size_floor: float = 0.55
 
 
 @dataclass
@@ -94,6 +97,10 @@ def load_config(path: str | Path | None = None) -> Config:
         raise ValueError("max_total_exposure_pct debe estar entre 0 y 100%")
     if cfg.strategy.ema_fast >= cfg.strategy.ema_slow:
         raise ValueError("ema_fast debe ser menor que ema_slow")
+    if cfg.risk.max_active_positions < 1:
+        raise ValueError("max_active_positions debe ser >= 1")
+    if not 0 < cfg.risk.strength_size_floor <= 1.0:
+        raise ValueError("strength_size_floor debe estar entre 0 y 1")
     return cfg
 
 

@@ -19,6 +19,8 @@ from __future__ import annotations
 import csv
 import json
 
+from dotenv import load_dotenv
+
 from tradingbot.config import EQUITY_HISTORY_FILE, HALT_FILE, LAST_RUN_FILE, STATE_FILE, Config, load_config
 
 
@@ -132,6 +134,7 @@ def _report_halt() -> None:
 
 
 def main() -> None:
+    load_dotenv()
     _print_header("REPORTE DEL BOT")
 
     try:

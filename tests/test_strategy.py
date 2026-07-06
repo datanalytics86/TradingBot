@@ -32,7 +32,7 @@ def make_trend_df(n: int, slope: float, start_price: float = 100.0, noise: float
 def test_indicators_have_expected_columns():
     df = make_trend_df(60, slope=0.1)
     out = compute_indicators(df, PARAMS)
-    for col in ("ema_fast", "ema_slow", "sma_trend", "atr", "adx", "atr_avg"):
+    for col in ("ema_fast", "ema_slow", "sma_trend", "atr", "adx", "plus_di", "minus_di", "atr_avg"):
         assert col in out.columns
 
 
@@ -98,6 +98,14 @@ def test_trailing_stop_only_falls_for_short():
         stops.append(stop)
     for prev, nxt in zip(stops, stops[1:]):
         assert nxt <= prev
+
+
+def test_signal_flat_when_di_disagrees_with_direction():
+    df = make_trend_df(300, slope=0.5, noise=0.2)
+    ind = compute_indicators(df, PARAMS)
+    ind.iloc[-1, ind.columns.get_loc("plus_di")] = 10.0
+    ind.iloc[-1, ind.columns.get_loc("minus_di")] = 30.0
+    assert signal(ind, PARAMS) == "FLAT"
 
 
 def test_trailing_stop_invalid_direction_raises():
