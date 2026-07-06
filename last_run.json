@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-07-06T22:21:11.218636+00:00",
+  "timestamp": "2026-07-06T22:47:09.567472+00:00",
   "status": "ok",
   "equity": 100000.0,
   "errors": [],
   "summaries": [
     {
       "symbol": "SPY",
-      "signal": "LONG",
-      "action": "abre SPY qty=46.587"
+      "signal": "FLAT",
+      "action": "ninguna"
     },
     {
       "symbol": "QQQ",
