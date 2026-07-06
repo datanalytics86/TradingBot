@@ -76,6 +76,7 @@ jobs:
             echo "Sin cambios de estado para commitear."
           else
             git commit -m "Actualiza estado del bot [skip ci]"
+            git pull --rebase origin "${{ github.ref_name }}"
             git push
           fi
 
