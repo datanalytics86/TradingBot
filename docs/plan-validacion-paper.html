@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Plan validación paper — 8 semanas</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 1rem auto; padding: 0 1rem; line-height: 1.5; color: #0f172a; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.1rem; margin-top: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 0.5rem 0; }
+    th, td { border: 1px solid #cbd5e1; padding: 0.4rem; text-align: left; }
+    .muted { color: #64748b; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Plan de validación paper — 8 semanas</h1>
+  <p class="muted">Objetivo: decidir con datos si el bot está listo para dinero real.</p>
+  <p><a href="index.html">← Volver al dashboard</a></p>
+
+  <h2>Semana 0</h2>
+  <ul>
+    <li>Bot solo en GitHub Actions + Telegram + dashboard activos</li>
+    <li>Anotar equity inicial y capital objetivo live (~$500)</li>
+    <li>Ideal: resetear paper a ~$500 para simular sizing real</li>
+  </ul>
+
+  <h2>Semanas 1–2 — Estabilidad</h2>
+  <p>Meta: ≥8/10 ciclos exitosos, Telegram diario, 0 HALT.</p>
+
+  <h2>Semanas 3–4 — Trading</h2>
+  <p>Meta: drawdown &lt;10%, órdenes coherentes, 0 rechazos Alpaca.</p>
+
+  <h2>Semanas 5–6 — Riesgo</h2>
+  <p>Meta: drawdown &lt;15%, sin circuit breaker inesperado.</p>
+
+  <h2>Semanas 7–8 — Go / No-go live</h2>
+  <p>Requisitos: ≥30 ciclos OK, keys live listas, reset de estado, riesgo conservador.</p>
+  <p><strong>No-go</strong> si drawdown &gt;15%, fallos técnicos o expectativas irreales.</p>
+
+  <p class="muted">Versión completa en el repo: docs/plan-validacion-paper.md</p>
+</body>
+</html>

@@ -504,6 +504,7 @@ def run_cycle() -> int:
         _notify_safe("⚠️ Ciclo con errores\n" + "\n".join(lines))
     else:
         log.info("Ciclo diario completado sin errores")
+        lines.append("Dashboard: https://datanalytics86.github.io/TradingBot/")
         _notify_safe("✅ " + "\n".join(lines))
 
     return 1 if errors else 0

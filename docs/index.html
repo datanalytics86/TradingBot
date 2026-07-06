@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>TradingBot Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a; --card: #1e293b; --text: #e2e8f0; --muted: #94a3b8;
+      --accent: #3b82f6; --ok: #22c55e; --warn: #f59e0b; --halt: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.45;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 1rem; }
+    h1 { font-size: 1.35rem; margin: 0 0 0.25rem; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .card {
+      background: var(--card); border-radius: 12px; padding: 1rem;
+      border: 1px solid #334155;
+    }
+    .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .value { font-size: 1.5rem; font-weight: 700; margin-top: 0.2rem; }
+    .status.ok { color: var(--ok); }
+    .status.warn { color: var(--warn); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 0.55rem 0.4rem; border-bottom: 1px solid #334155; text-align: left; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .badge.open { background: #14532d; color: #bbf7d0; }
+    .badge.flat { background: #334155; color: #cbd5e1; }
+    .spark { width: 100%; height: 80px; }
+    .halt {
+      background: #450a0a; border: 1px solid var(--halt); color: #fecaca;
+      padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem;
+    }
+    a { color: var(--accent); }
+    .links { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; }
+    .links a { text-decoration: none; background: #1d4ed8; color: white; padding: 0.45rem 0.8rem; border-radius: 8px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>TradingBot Dashboard</h1>
+    <p class="sub">Modo <strong>paper</strong> · Actualizado 2026-07-06 23:33 UTC</p>
+    
+    <div class="grid">
+      <div class="card">
+        <div class="label">Equity</div>
+        <div class="value">$100,000.00</div>
+      </div>
+      <div class="card">
+        <div class="label">Peak equity</div>
+        <div class="value">$100,000.00</div>
+      </div>
+      <div class="card">
+        <div class="label">Drawdown vs peak</div>
+        <div class="value">0.00%</div>
+      </div>
+      <div class="card">
+        <div class="label">Último ciclo</div>
+        <div class="value status ok">ok</div>
+        <div class="sub">2026-07-06T22:47:09.567472+00:00</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:0.75rem">
+      <div class="label">Evolución equity</div>
+      <svg viewBox="0 0 320 80" class="spark" aria-hidden="true"><polyline fill="none" stroke="#3b82f6" stroke-width="2" points="0.0,76.0 160.0,76.0 320.0,76.0"/></svg>
+    </div>
+
+    <div class="card" style="margin-top:0.75rem">
+      <div class="label">Posiciones / papeles</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Universo</th><th>Operado</th><th>Estado</th><th>Señal</th><th>Cantidad</th><th>Stop</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>SPY</strong></td><td>—</td><td><span class="badge flat">SIN POSICIÓN</span></td><td>—</td><td>0.000</td><td>—</td></tr>
+<tr><td><strong>QQQ</strong></td><td>—</td><td><span class="badge flat">SIN POSICIÓN</span></td><td>—</td><td>0.000</td><td>—</td></tr>
+<tr><td><strong>IWM</strong></td><td>—</td><td><span class="badge flat">SIN POSICIÓN</span></td><td>—</td><td>0.000</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:0.75rem">
+      <div class="label">Último ciclo — señales y acciones</div>
+      <table>
+        <thead><tr><th>Símbolo</th><th>Señal</th><th>Acción</th></tr></thead>
+        <tbody><tr><td>SPY</td><td>FLAT</td><td>ninguna</td></tr>
+<tr><td>QQQ</td><td>FLAT</td><td>ninguna</td></tr>
+<tr><td>IWM</td><td>FLAT</td><td>ninguna</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="links">
+      <a href="https://app.alpaca.markets/paper/dashboard/overview" target="_blank" rel="noopener">Alpaca paper</a>
+      <a href="https://github.com/datanalytics86/TradingBot/actions" target="_blank" rel="noopener">GitHub Actions</a>
+      <a href="plan-validacion-paper.html" target="_blank" rel="noopener">Plan validación 8 semanas</a>
+    </div>
+  </div>
+</body>
+</html>

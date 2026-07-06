@@ -40,6 +40,13 @@ jobs:
         run: python3 -m tradingbot.main
         continue-on-error: true
 
+      - name: Generar dashboard web
+        if: always()
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python3 -m tradingbot.dashboard
+
       - name: Notificar fallo por Telegram
         if: steps.bot.outcome == 'failure'
         env:
@@ -72,7 +79,7 @@ jobs:
           git config user.name "trading-bot"
           git config user.email "trading-bot@users.noreply.github.com"
 
-          git add state.json equity_history.csv last_run.json 2>/dev/null || true
+          git add state.json equity_history.csv last_run.json docs/index.html 2>/dev/null || true
           if [ -f HALT ]; then
             git add HALT
           fi
