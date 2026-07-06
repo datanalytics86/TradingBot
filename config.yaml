@@ -20,9 +20,9 @@ strategy:
   ema_slow: 50
   trend_filter: 200      # SMA de 200 días: solo longs sobre ella, solo shorts bajo ella
   atr_period: 14
-  atr_stop_mult: 2.25    # stop más ajustado: deja correr ganadores, corta antes
+  atr_stop_mult: 2.5     # stop más amplio: deja correr ganadores
   adx_period: 14
-  min_adx: 22            # filtro más estricto: evita whipsaws en mercados laterales
+  min_adx: 18            # filtro ADX más permisivo (mejor Sharpe en backtest 2018+)
   use_di_filter: true    # LONG solo si +DI > -DI; SHORT solo si -DI > +DI
   vol_scale_threshold: 1.5 # reduce tamaño si ATR > 1.5x su media de 20 días
   vol_scale_factor: 0.6    # factor de reducción en alta volatilidad
