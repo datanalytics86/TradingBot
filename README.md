@@ -76,18 +76,24 @@ reconciliar correctamente una transición de señal (por ejemplo `LONG` en
 
 ```
 tradingbot/
-  config.py    - Carga y validación de config.yaml y de las claves de Alpaca (.env)
-  data.py      - Descarga de datos diarios OHLCV vía yfinance (con validación de frescura)
-  strategy.py  - Indicadores (EMA/SMA/ATR) y lógica de señal + trailing stop
-  risk.py      - Tamaño de posición (position sizing) y circuit breaker
-  broker.py    - Wrapper sobre Alpaca (alpaca-py), import perezoso
-  backtest.py  - Motor de backtest histórico (python3 -m tradingbot.backtest)
-  main.py      - Ciclo diario en vivo/paper (python3 -m tradingbot.main)
-  report.py    - Reporte de estado en texto (python3 -m tradingbot.report)
-  notify.py    - Notificaciones opcionales por Telegram
-tests/         - Tests unitarios con datos sintéticos (sin red)
-config.yaml    - Toda la configuración de estrategia/riesgo/universo
-.env.example   - Plantilla de credenciales de Alpaca y de Telegram
+  config.py           - Carga y validación de config.yaml y credenciales (.env)
+  data.py             - Datos OHLCV y premarket (Polygon → Alpaca → yfinance)
+  scanner.py          - Scanner premarket (gap + volumen, top N candidatos)
+  strategy.py         - Indicadores (EMA/SMA/ATR) y lógica de señal + trailing stop
+  risk.py             - Position sizing, circuit breaker y límite de pérdida diaria
+  broker.py           - Wrapper sobre Alpaca (alpaca-py), import perezoso
+  backtest.py         - Backtest clásico y avanzado (--advanced: walk-forward, Plotly)
+  dashboard_builder.py - Dashboard unificado (equity, drawdown, scanner + Grok)
+  dashboard.py        - Dashboard legacy (docs/index.html); usar dashboard_builder
+  main.py             - Ciclo diario paper/live con safeguards y resumen diario
+  report.py           - Reporte de estado en texto (python3 -m tradingbot.report)
+  notify.py           - Notificaciones opcionales por Telegram
+scripts/
+  optimize_params.py  - Grid search de parámetros → optimization_results.json
+tests/                - Tests unitarios con datos sintéticos (sin red)
+config.yaml           - Estrategia, riesgo, scanner, backtest, dashboard
+.env.example          - Plantilla de credenciales (Alpaca, Polygon, Grok, Telegram)
+run_bot.bat           - Lanzador rápido en Windows (cycle, backtest, live, etc.)
 .github/workflows/trading-bot.yml - Ejecución automática diaria vía GitHub Actions
 ```
 
@@ -149,8 +155,10 @@ python3 -m tradingbot.main
 
 Este comando hace un único ciclo:
 
-1. Lee el estado (`state.json`) y consulta el equity de la cuenta.
-2. Revisa el circuit breaker (si se activa, cierra todo, escribe `HALT` y
+1. Lee el estado (`state.json`). Si el **scanner premarket** está activado,
+   escanea el mercado y reduce el universo a los mejores candidatos más las
+   posiciones ya abiertas.
+2. Consulta el equity de la cuenta y revisa el circuit breaker (si se activa, cierra todo, escribe `HALT` y
    notifica por Telegram si está configurado).
 3. **Reconcilia el estado contra el broker**: si el broker tiene posiciones
    abiertas en símbolos del universo (o sus proxies) que el estado no
@@ -183,6 +191,143 @@ efímeros y no persisten archivos entre ejecuciones por sí solos.
   con datos históricos por diseño, desactiva esta validación
   (`validate_freshness=False`).
 - **Reconciliación estado↔broker**: ver el punto 3 más arriba.
+
+## Premarket Scanner
+
+Módulo opcional inspirado en scanners de momentum premarket (estilo bots de
+day-trading). **Desactivado por defecto** (`scanner.enabled: false`) para no
+alterar el comportamiento del bot de ETFs.
+
+### Qué hace
+
+Antes de calcular señales, el scanner:
+
+1. Arma un pool de candidatos: universo base + `watchlist` + gainers de
+   Polygon (si hay API key).
+2. Descarga cotizaciones premarket vía **Polygon** (principal), con fallback
+   a **Alpaca** y **yfinance**.
+3. Filtra símbolos con:
+   - gap ≥ `gap_threshold` para acciones (default 5%) o `etf_gap_threshold`
+     para ETFs (default 2.5% — umbral más bajo)
+   - volumen ≥ `volume_multiplier` × promedio de 20 días (default 2×)
+   - precio entre `min_price` y `max_price` (default $5–$500)
+   - liquidez mínima (`min_avg_volume`)
+4. Calcula un **score** ponderado (gap + volumen + momentum) y devuelve los
+   top `max_symbols` (default 15).
+5. Ajusta el universo del ciclo: candidatos del scanner + posiciones abiertas.
+6. **Capa IA (Grok API real)**: `analyze_with_grok()` llama a xAI y puntúa
+   cada candidato (`strong` / `buy` / `watch` / `caution` / `skip`) con
+   sugerencia de sizing/riesgo. Caché JSON + fallback heurístico si falla.
+7. **Exporta CSV** automáticamente si `export_csv: true`.
+8. **Reporte mejorado** con tabla ASCII y dashboard HTML opcional.
+
+### Cómo activarlo
+
+1. Añade `POLYGON_API_KEY` en `.env` (recomendado; sin ella usa Alpaca/yfinance).
+2. En `config.yaml`:
+
+   ```yaml
+   data:
+     primary_source: polygon
+     fallback_sources:
+       - alpaca
+       - yfinance
+
+   scanner:
+     enabled: true
+     gap_threshold: 0.05
+     etf_gap_threshold: 2.5    # 2.5% para SPY/QQQ/IWM
+     volume_multiplier: 2.0
+     max_symbols: 15
+     export_csv: true
+     generate_html: true        # dashboard en scanner_results/scanner_report.html
+     watchlist:
+       - NVDA
+       - TSLA
+   ```
+
+3. Prueba solo el scanner (sin operar):
+
+   ```bash
+   python3 -m tradingbot.main --test-scanner
+   python3 -m tradingbot.main --test-scanner --config config.yaml
+   ```
+
+4. Ver el CSV exportado:
+
+   ```bash
+   # Windows
+   type scanner_results\scanner_results_YYYYMMDD.csv
+   # Linux/macOS
+   cat scanner_results/scanner_results_YYYYMMDD.csv
+   ```
+
+5. Ver reporte completo (incluye sección Scanner Results):
+
+   ```bash
+   python3 -m tradingbot.report
+   ```
+
+6. Abrir dashboard HTML (si `generate_html: true`):
+
+   Abre `scanner_results/scanner_report.html` en el navegador.
+
+7. Ciclo completo con scanner activo:
+
+   ```bash
+   python3 -m tradingbot.main
+   ```
+
+### Export CSV
+
+Tras cada escaneo se genera `scanner_results/scanner_results_YYYYMMDD.csv` con
+columnas: símbolo, tipo (ETF/STOCK), score, gap, volumen, precio, fuente y
+análisis Grok (`grok_verdict`, `grok_confidence`, `grok_summary`,
+`grok_sizing`, `grok_source`).
+
+El estado del último escaneo también queda en `last_scanner.json` (raíz del
+repo) para que `tradingbot.report` lo muestre sin re-escanear.
+
+### Capa IA (Grok API — xAI)
+
+1. Crea cuenta en [console.x.ai](https://console.x.ai/) y genera una API key.
+2. Añade en `.env`:
+
+   ```bash
+   GROK_API_KEY=xai-tu_key_aqui
+   ```
+
+3. Configura el modelo en `config.yaml`:
+
+   ```yaml
+   api:
+     grok_enabled: true
+     grok_model: "grok-4"
+     timeout: 15
+   ```
+
+4. Instala dependencias: `pip install xai-sdk` (incluido en `requirements.txt`).
+
+5. Prueba el análisis:
+
+   ```bash
+   python3 -m tradingbot.main --test-scanner
+   python3 -m tradingbot.report   # sección "ANÁLISIS GROK"
+   ```
+
+**Comportamiento:** usa `xai-sdk` como cliente principal; si falla, intenta
+REST OpenAI-compatible (`https://api.x.ai/v1`). Las respuestas se cachean en
+`scanner_results/grok_cache.json`. Sin key o si la API falla → heurística local.
+
+### Notas
+
+- Los símbolos nuevos del scanner **no tienen `short_proxy`**: las señales
+  `SHORT` en acciones individuales se ignoran (solo ETFs del universo base
+  conservan su proxy inverso).
+- El backtest **no usa el scanner**; sigue operando el universo fijo de
+  `config.yaml`.
+- Ajusta los pesos del score (`gap_weight`, `volume_weight`,
+  `momentum_weight`) — deben sumar 1.0.
 
 ### Ejemplo de crontab
 
@@ -301,6 +446,8 @@ repository secret** y creá estos 4 secrets:
 | `ALPACA_SECRET_KEY`     | Secret key de tu cuenta de Alpaca                        |
 | `TELEGRAM_BOT_TOKEN`    | Token del bot de Telegram (opcional, ver arriba)          |
 | `TELEGRAM_CHAT_ID`      | Chat ID de Telegram (opcional, ver arriba)                |
+| `POLYGON_API_KEY`       | Polygon.io para scanner/datos (opcional)                    |
+| `GROK_API_KEY`          | xAI Grok para análisis del scanner (opcional)             |
 
 Si no querés notificaciones de Telegram, simplemente no crees esos dos
 secrets: el bot corre igual, sin notificar (no-op silencioso).
@@ -322,6 +469,103 @@ secrets: el bot corre igual, sin notificar (no-op silencioso).
   por defecto del `GITHUB_TOKEN`, asegurate de que el workflow tenga
   permiso de escritura habilitado (Settings → Actions → General →
   Workflow permissions → "Read and write permissions").
+
+## Checklist para pasar a cuenta real (10 puntos clave)
+
+Antes de cambiar `mode: live` en `config.yaml`, verifica **cada punto**.
+Si alguno falla, permanece en paper.
+
+### 1. Backtest validado en múltiples regímenes
+
+- [ ] Corriste `python -m tradingbot.backtest --start 2015-01-01 --advanced`
+- [ ] Revisaste Sharpe, Sortino, Calmar, Profit Factor y Max DD
+- [ ] Walk-forward OOS no muestra colapso sistemático en todos los folds
+- [ ] Expectativa realista: CAGR modesto (~1–3%), no 20% anual
+
+### 2. Paper trading ≥ 8 semanas sin incidentes
+
+- [ ] ≥ 30 ciclos diarios exitosos (GitHub Actions o local)
+- [ ] 0 errores críticos sin resolver en las últimas 2 semanas
+- [ ] Drawdown paper < 15% y explicable
+
+### 3. Entiendes cada trade del bot
+
+- [ ] Puedes explicar por qué abrió/cerró cada posición
+- [ ] Conoces la diferencia entre señal en subyacente y orden en proxy inverso
+- [ ] Revisaste el plan en `docs/plan-validacion-paper.md`
+
+### 4. Capital y sizing reales definidos
+
+- [ ] Capital live = solo dinero que puedes perder (recomendado: $500)
+- [ ] `risk_per_trade` ajustado (1–1.5% en live, más conservador que paper)
+- [ ] Sizing probado con equity paper reseteado a ~$500 si fue posible
+
+### 5. Credenciales y secrets separados
+
+- [ ] API keys **live** distintas a paper en `.env` y GitHub Secrets
+- [ ] `GROK_API_KEY` y `POLYGON_API_KEY` configuradas si usas scanner
+- [ ] Telegram funcionando para alertas de circuit breaker y HALT
+
+### 6. Safeguards activos
+
+- [ ] `max_drawdown` (circuit breaker) configurado (15% o menos)
+- [ ] `max_daily_loss` configurado (3% recomendado)
+- [ ] Confirmación live: `--confirm-live` o `TRADINGBOT_LIVE_CONFIRM=YES`
+- [ ] Archivo `HALT` ausente antes del día D
+
+### 7. Estado limpio el día D
+
+- [ ] Reset de `state.json`, `equity_history.csv`, `last_run.json`
+- [ ] Borrar `HALT` si existía de pruebas
+- [ ] Commitear config live y pushear a GitHub
+
+### 8. Monitoreo post-live
+
+- [ ] Dashboard habilitado (`dashboard.enabled: true`)
+- [ ] Revisar `docs/dashboard.html` y Telegram tras el primer ciclo
+- [ ] Plan de revisión diaria la primera semana (no “instalar y olvidar”)
+
+### 9. Plan de contingencia
+
+- [ ] Sabes cómo detener el bot manualmente (crear `HALT` o desactivar workflow)
+- [ ] Sabes cerrar posiciones en Alpaca manualmente si hace falta
+- [ ] Tienes contacto/nota de soporte de Alpaca por si hay rechazos de órdenes
+
+### 10. Decisión consciente (go / no-go)
+
+- [ ] Backtest + paper + checklist = **SÍ** en todos los puntos anteriores
+- [ ] Aceptas que el bot puede perder dinero incluso con todo bien configurado
+- [ ] Primera semana live: monitoreo intensivo, sin cambiar parámetros por pánico
+
+**Comando para arrancar en live (solo tras completar el checklist):**
+
+```bash
+# Windows
+set TRADINGBOT_LIVE_CONFIRM=YES
+python -m tradingbot.main --confirm-live
+
+# o
+run_bot.bat live
+```
+
+---
+
+## Backtest avanzado y optimización
+
+```bash
+# Backtest clásico
+python -m tradingbot.backtest --start 2018-01-01
+
+# Backtest avanzado (slippage variable, walk-forward, Plotly)
+python -m tradingbot.backtest --start 2018-01-01 --advanced
+
+# Optimizar parámetros (grid search → optimization_results.json)
+python scripts/optimize_params.py --start 2018-01-01 --quick
+
+# Dashboard unificado
+python -m tradingbot.main --build-dashboard
+# Abre docs/dashboard.html en el navegador
+```
 
 ## Pipeline recomendado: backtest -> paper -> real
 

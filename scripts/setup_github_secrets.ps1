@@ -29,6 +29,8 @@ Write-Host "Configurando secrets en: $repo" -ForegroundColor Cyan
 $keys = @(
     "ALPACA_API_KEY",
     "ALPACA_SECRET_KEY",
+    "POLYGON_API_KEY",
+    "GROK_API_KEY",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID"
 )

@@ -261,6 +261,7 @@ def test_run_cycle_skips_new_orders_for_adopted_symbol_this_cycle(monkeypatch, t
     monkeypatch.setattr(main, "EQUITY_HISTORY_FILE", tmp_path / "equity_history.csv")
     monkeypatch.setattr(main, "LOG_FILE", tmp_path / "logs" / "bot.log")
     monkeypatch.setattr(main, "LAST_RUN_FILE", tmp_path / "last_run.json")
+    monkeypatch.setattr(main, "build_dashboard", lambda cfg: tmp_path / "dash.html")
 
     exit_code = main.run_cycle()
 

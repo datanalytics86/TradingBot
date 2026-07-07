@@ -62,3 +62,11 @@ def check_circuit_breaker(equity: float, peak_equity: float, risk: RiskParams) -
         return False
     threshold = peak_equity * (1 - risk.max_drawdown)
     return equity < threshold
+
+
+def check_daily_loss(equity: float, day_start_equity: float, risk: RiskParams) -> bool:
+    """True si el equity cayó más de ``max_daily_loss`` desde el inicio del día."""
+    if day_start_equity <= 0:
+        return False
+    threshold = day_start_equity * (1 - risk.max_daily_loss)
+    return equity < threshold

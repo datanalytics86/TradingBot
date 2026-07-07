@@ -35,8 +35,50 @@ risk:
   strength_size_floor: 0.55 # posiciones débiles usan al menos 55% del tamaño base
   max_drawdown: 0.15       # circuit breaker: si el equity cae 15% desde su máximo,
                            # se liquida todo y el bot se apaga (crea archivo HALT)
+  max_daily_loss: 0.03     # tope de pérdida en un solo día (3% desde apertura del día)
 
 data:
   lookback_days: 400       # días de historia para calcular indicadores
-  retries: 3               # reintentos automáticos si yfinance falla
+  retries: 3               # reintentos automáticos si falla la fuente principal
   retry_delay_seconds: 2.0 # espera base entre reintentos (se multiplica por intento)
+  primary_source: yfinance   # polygon | alpaca | yfinance
+  fallback_sources:          # se intentan en orden si la principal falla
+    - alpaca
+    - yfinance
+
+# Scanner premarket (estilo momentum/gap). Desactivado por defecto para no
+# alterar el comportamiento del bot de ETFs. Actívalo con enabled: true.
+scanner:
+  enabled: false
+  gap_threshold: 0.05        # gap mínimo acciones (5%)
+  etf_gap_threshold: 2.5     # gap mínimo ETFs (2.5% — más bajo que acciones)
+  volume_multiplier: 2.0     # volumen >= 2x el promedio de 20 días
+  min_price: 5.0
+  max_price: 500.0
+  max_symbols: 15            # top N candidatos que pasan filtros
+  min_avg_volume: 500000     # liquidez mínima (promedio diario)
+  include_base_universe: true  # incluir SPY/QQQ/IWM en el pool de escaneo
+  watchlist: []              # símbolos extra a escanear (ej: NVDA, TSLA)
+  gap_weight: 0.45           # pesos del score (deben sumar 1.0)
+  volume_weight: 0.35
+  momentum_weight: 0.20
+  export_csv: true           # exporta scanner_results_YYYYMMDD.csv tras cada escaneo
+  generate_html: false       # genera scanner_results/scanner_report.html
+
+# API de Grok (xAI) para análisis IA del scanner
+api:
+  grok_enabled: true
+  grok_model: "grok-4"
+  timeout: 15
+
+# Backtest avanzado (python -m tradingbot.backtest --advanced)
+backtest:
+  slippage_min: 0.0005     # 0.05%
+  slippage_max: 0.002      # 0.20%
+  walk_forward_train_days: 252
+  walk_forward_test_days: 63
+
+# Dashboard unificado (equity + scanner + Grok)
+dashboard:
+  enabled: true
+  type: html               # html (Plotly) | basic (SVG simple)

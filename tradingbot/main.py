@@ -30,10 +30,20 @@ from tradingbot.config import (
 )
 from tradingbot.data import fetch_daily
 from tradingbot.notify import send_telegram
+from tradingbot.report import emit_scanner_report, generate_scanner_html
+from tradingbot.scanner import (
+    ScanResult,
+    apply_scanner_to_universe,
+    finalize_scanner_outputs,
+    format_scan_report,
+    scan_premarket,
+)
+from tradingbot.dashboard_builder import build_dashboard
 from tradingbot.risk import (
     apply_volatility_scaling,
     cap_by_total_exposure,
     check_circuit_breaker,
+    check_daily_loss,
     position_size,
 )
 from tradingbot.strategy import compute_indicators, signal, trailing_stop, trend_strength
@@ -115,14 +125,126 @@ def _notify_safe(text: str) -> None:
 
 
 def _fetch_daily(symbol: str, cfg: Config, **kwargs) -> object:
-    """Wrapper de fetch_daily con reintentos configurados en config.yaml."""
+    """Wrapper de fetch_daily con reintentos y fuentes configurados en config.yaml."""
     return fetch_daily(
         symbol,
         days=cfg.lookback_days,
         retries=cfg.data.retries,
         retry_delay_seconds=cfg.data.retry_delay_seconds,
+        data_params=cfg.data,
         **kwargs,
     )
+
+
+def _confirm_live_mode(cfg: Config) -> bool:
+    """Exige confirmación explícita antes de operar en modo live."""
+    if cfg.mode != "live":
+        return True
+
+    env_ok = os.environ.get("TRADINGBOT_LIVE_CONFIRM", "").strip().upper() in ("YES", "1", "TRUE")
+    cli_ok = "--confirm-live" in sys.argv
+    if env_ok or cli_ok:
+        log.warning("Modo LIVE confirmado — operando con dinero real")
+        return True
+
+    log.error(
+        "Modo LIVE sin confirmación. Usa --confirm-live o "
+        "TRADINGBOT_LIVE_CONFIRM=YES en el entorno."
+    )
+    return False
+
+
+def _sync_day_start_equity(state: dict, equity: float) -> float:
+    """Registra equity al inicio del día UTC para el límite de pérdida diaria."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    if state.get("day_start_date") != today:
+        state["day_start_date"] = today
+        state["day_start_equity"] = equity
+    return float(state.get("day_start_equity", equity))
+
+
+def _format_daily_summary(
+    cfg: Config,
+    equity: float,
+    peak_equity: float,
+    summaries: list[dict],
+    errors: list[tuple[str, str]],
+    status: str,
+) -> str:
+    """Resumen diario formateado para logs y Telegram."""
+    dd_pct = (equity / peak_equity - 1) * 100 if peak_equity > 0 else 0.0
+    lines = [
+        "╔══════════════════════════════════════╗",
+        f"║  RESUMEN DIARIO — {cfg.mode.upper():<6}              ║",
+        "╠══════════════════════════════════════╣",
+        f"║  Equity:     ${equity:>10,.2f}           ║",
+        f"║  Peak:       ${peak_equity:>10,.2f}           ║",
+        f"║  DD vs peak: {dd_pct:>+8.2f}%              ║",
+        f"║  Estado:     {status:<20}  ║",
+        "╠══════════════════════════════════════╣",
+    ]
+    for s in summaries[:8]:
+        sym = str(s.get("symbol", ""))[:8]
+        sig = str(s.get("signal", ""))[:6]
+        act = str(s.get("action", ""))[:28]
+        lines.append(f"║  {sym:<8} {sig:<6} {act:<28}║")
+    if len(summaries) > 8:
+        lines.append(f"║  ... +{len(summaries) - 8} más{' ' * 24}║")
+    if errors:
+        lines.append("╠══════════════════════════════════════╣")
+        for sym, err in errors[:3]:
+            lines.append(f"║  ERROR {sym}: {err[:30]:<30}║")
+    lines.append("╚══════════════════════════════════════╝")
+    return "\n".join(lines)
+
+
+def _open_position_symbols(state: dict) -> set[str]:
+    """Devuelve los ``inst.symbol`` del universo con posición abierta en el estado."""
+    open_syms: set[str] = set()
+    for inst_symbol, sym_state in state.get("positions", {}).items():
+        if sym_state.get("traded_symbol"):
+            open_syms.add(inst_symbol)
+    return open_syms
+
+
+def _apply_scanner(cfg: Config, state: dict) -> tuple[list[dict], list[ScanResult]]:
+    """Ejecuta el scanner premarket y ajusta ``cfg.universe`` si está habilitado.
+
+    Exporta CSV, corre análisis Grok (simulado) y genera reporte según config.
+    Devuelve (resúmenes para last_run.json, resultados del scanner).
+    """
+    if not cfg.scanner.enabled:
+        return [], []
+
+    log.info("Scanner premarket habilitado — escaneando mercado...")
+    try:
+        results = scan_premarket(cfg)
+        insights, csv_path = finalize_scanner_outputs(cfg, results)
+        open_syms = _open_position_symbols(state)
+        cfg.universe = apply_scanner_to_universe(cfg, results, open_syms)
+
+        report = format_scan_report(results, insights)
+        log.info("%s", report.replace("\n", " | "))
+
+        try:
+            emit_scanner_report(cfg, results, insights)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("No se pudo emitir reporte del scanner: %s", exc)
+
+        if cfg.scanner.generate_html and results:
+            generate_scanner_html(results, insights)
+
+        action_parts = [report]
+        if csv_path:
+            action_parts.append(f"CSV: {csv_path}")
+
+        return (
+            [{"symbol": "SCANNER", "signal": "n/d", "action": "\n".join(action_parts)}],
+            results,
+        )
+    except Exception as exc:  # noqa: BLE001 - el scanner no debe abortar el ciclo
+        log.warning("Scanner premarket falló (se usa universo base): %s", exc)
+        return [{"symbol": "SCANNER", "signal": "n/d", "action": f"error: {exc}"}], []
 
 
 def _estimate_exposure(broker: AlpacaBroker, price_cache: dict[str, float]) -> float:
@@ -434,6 +556,12 @@ def run_cycle() -> int:
         return 1
 
     cfg = load_config()
+    if not _confirm_live_mode(cfg):
+        _notify_safe("Bot detenido: modo LIVE sin confirmación (--confirm-live requerido)")
+        return 1
+
+    state = _load_state()
+    scanner_summaries, _scanner_results = _apply_scanner(cfg, state)
 
     try:
         broker = AlpacaBroker(paper=(cfg.mode == "paper"))
@@ -447,9 +575,21 @@ def run_cycle() -> int:
     equity = broker.get_equity()
     log.info("Equity actual: %.2f", equity)
 
-    state = _load_state()
+    day_start = _sync_day_start_equity(state, equity)
     peak_equity = max(state.get("peak_equity", 0.0), equity)
     state["peak_equity"] = peak_equity
+
+    if check_daily_loss(equity, day_start, cfg.risk):
+        reason = (
+            f"Pérdida diaria máxima: equity={equity:.2f} cayó más de "
+            f"{cfg.risk.max_daily_loss * 100:.0f}% desde inicio del día ({day_start:.2f})"
+        )
+        log.error(reason)
+        broker.close_all_positions()
+        _write_halt(reason)
+        _save_state(state)
+        _notify_safe(f"LÍMITE DIARIO ACTIVADO. {reason}")
+        return 1
 
     if check_circuit_breaker(equity, peak_equity, cfg.risk):
         reason = (
@@ -470,7 +610,7 @@ def run_cycle() -> int:
     ranked = _rank_instruments(cfg.universe, cfg, adopted)
 
     errors: list[tuple[str, str]] = []
-    summaries: list[dict] = []
+    summaries: list[dict] = list(scanner_summaries)
     for sym in adopted:
         log.info(
             "%s: posición adoptada este ciclo tras reconciliación, se gestiona desde el próximo ciclo",
@@ -493,24 +633,75 @@ def run_cycle() -> int:
     status = "error" if errors else "ok"
     _write_last_run(status, equity, errors, summaries)
 
-    lines = [f"Ciclo diario completado. Equity: {equity:.2f}"]
-    for s in summaries:
-        lines.append(f"  {s['symbol']}: señal={s['signal']} -> {s['action']}")
+    summary_block = _format_daily_summary(cfg, equity, peak_equity, summaries, errors, status)
+    log.info("\n%s", summary_block)
+
+    if cfg.dashboard.enabled:
+        try:
+            dash_path = build_dashboard(cfg)
+            log.info("Dashboard actualizado: %s", dash_path)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("No se pudo generar dashboard: %s", exc)
+
+    telegram_lines = [f"Ciclo {status.upper()} · {cfg.mode} · Equity ${equity:,.2f}"]
+    for s in summaries[:6]:
+        telegram_lines.append(f"  {s['symbol']}: {s.get('action', 'n/d')}")
     if errors:
-        lines.append("Errores:")
-        for sym, err in errors:
-            lines.append(f"  {sym}: {err}")
         log.warning("Ciclo terminado con errores en: %s", ", ".join(s for s, _ in errors))
-        _notify_safe("⚠️ Ciclo con errores\n" + "\n".join(lines))
+        _notify_safe("⚠️ Ciclo con errores\n" + "\n".join(telegram_lines))
     else:
         log.info("Ciclo diario completado sin errores")
-        lines.append("Dashboard: https://datanalytics86.github.io/TradingBot/")
-        _notify_safe("✅ " + "\n".join(lines))
+        telegram_lines.append("Dashboard: docs/dashboard.html")
+        _notify_safe("✅ " + "\n".join(telegram_lines))
 
     return 1 if errors else 0
 
 
+def run_scanner_test(config_path: str | None = None) -> int:
+    """Modo de prueba: ejecuta solo el scanner premarket y muestra resultados."""
+    _setup_logging()
+    load_dotenv()
+
+    cfg = load_config(config_path)
+    if not cfg.scanner.enabled:
+        log.warning(
+            "scanner.enabled=false en config.yaml. "
+            "Actívalo para probar el scanner (ver README → Premarket Scanner)."
+        )
+
+    log.info("Modo --test-scanner: ejecutando scan_premarket()...")
+    try:
+        results = scan_premarket(cfg)
+        insights, csv_path = finalize_scanner_outputs(cfg, results)
+        print(format_scan_report(results, insights))
+        emit_scanner_report(cfg, results, insights)
+        if csv_path:
+            print(f"\nCSV exportado: {csv_path}")
+        open_syms = _open_position_symbols(_load_state())
+        adjusted = apply_scanner_to_universe(cfg, results, open_syms)
+        print(f"\nUniverso resultante ({len(adjusted)} símbolos): "
+              f"{', '.join(i.symbol for i in adjusted)}")
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Error en --test-scanner: %s", exc)
+        return 1
+
+
 def main() -> None:
+    if "--build-dashboard" in sys.argv:
+        _setup_logging()
+        load_dotenv()
+        cfg = load_config()
+        path = build_dashboard(cfg)
+        print(f"Dashboard: {path}")
+        sys.exit(0)
+    if "--test-scanner" in sys.argv:
+        config_path = None
+        if "--config" in sys.argv:
+            idx = sys.argv.index("--config")
+            if idx + 1 < len(sys.argv):
+                config_path = sys.argv[idx + 1]
+        sys.exit(run_scanner_test(config_path))
     sys.exit(run_cycle())
 
 

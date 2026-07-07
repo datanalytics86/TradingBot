@@ -1,0 +1,161 @@
+{
+  "timestamp": "2026-07-07T13:32:25.490538+00:00",
+  "start_date": "2018-01-01",
+  "combinations_tested": 16,
+  "best": {
+    "params": {
+      "ema_fast": 15,
+      "ema_slow": 50,
+      "atr_stop_mult": 2.5,
+      "gap_threshold": 0.05
+    },
+    "score": 0.2443469790319119,
+    "sharpe": 0.2787551280577189,
+    "cagr": 0.010876148538335073,
+    "max_drawdown": -0.056948338276605504,
+    "profit_factor": 1.2649796460251164,
+    "n_trades": 240
+  },
+  "top_10": [
+    {
+      "params": {
+        "ema_fast": 15,
+        "ema_slow": 50,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.05
+      },
+      "score": 0.2443469790319119,
+      "sharpe": 0.2787551280577189,
+      "cagr": 0.010876148538335073,
+      "max_drawdown": -0.056948338276605504,
+      "profit_factor": 1.2649796460251164,
+      "n_trades": 240
+    },
+    {
+      "params": {
+        "ema_fast": 15,
+        "ema_slow": 50,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.03
+      },
+      "score": 0.24434657348169567,
+      "sharpe": 0.27875438450260986,
+      "cagr": 0.010876119127193773,
+      "max_drawdown": -0.05694832052214738,
+      "profit_factor": 1.2649787081277422,
+      "n_trades": 240
+    },
+    {
+      "params": {
+        "ema_fast": 20,
+        "ema_slow": 50,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.05
+      },
+      "score": 0.242768537988736,
+      "sharpe": 0.2770995143115481,
+      "cagr": 0.010754095449700518,
+      "max_drawdown": -0.05643694510871433,
+      "profit_factor": 1.2728781132174363,
+      "n_trades": 242
+    },
+    {
+      "params": {
+        "ema_fast": 20,
+        "ema_slow": 50,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.03
+      },
+      "score": 0.24273777733044533,
+      "sharpe": 0.27704953962773965,
+      "cagr": 0.010751759390345006,
+      "max_drawdown": -0.056438091761324416,
+      "profit_factor": 1.27282077406398,
+      "n_trades": 242
+    },
+    {
+      "params": {
+        "ema_fast": 20,
+        "ema_slow": 40,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.05
+      },
+      "score": 0.2353401307918097,
+      "sharpe": 0.26191665661047697,
+      "cagr": 0.009909613298363817,
+      "max_drawdown": -0.05546189560740389,
+      "profit_factor": 1.2501857441746518,
+      "n_trades": 238
+    },
+    {
+      "params": {
+        "ema_fast": 20,
+        "ema_slow": 40,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.03
+      },
+      "score": 0.23533981901618273,
+      "sharpe": 0.2619160553336571,
+      "cagr": 0.009909591632194736,
+      "max_drawdown": -0.05546187770058486,
+      "profit_factor": 1.2501852134514289,
+      "n_trades": 238
+    },
+    {
+      "params": {
+        "ema_fast": 15,
+        "ema_slow": 40,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.05
+      },
+      "score": 0.23449466794979137,
+      "sharpe": 0.26187676518186537,
+      "cagr": 0.010184703123943484,
+      "max_drawdown": -0.05779050220276383,
+      "profit_factor": 1.2462387311186423,
+      "n_trades": 241
+    },
+    {
+      "params": {
+        "ema_fast": 15,
+        "ema_slow": 40,
+        "atr_stop_mult": 2.5,
+        "gap_threshold": 0.03
+      },
+      "score": 0.2344945648156875,
+      "sharpe": 0.2618767188988049,
+      "cagr": 0.010184703048502275,
+      "max_drawdown": -0.05779061300416111,
+      "profit_factor": 1.246238660193411,
+      "n_trades": 241
+    },
+    {
+      "params": {
+        "ema_fast": 15,
+        "ema_slow": 50,
+        "atr_stop_mult": 2.0,
+        "gap_threshold": 0.03
+      },
+      "score": 0.23365553672936745,
+      "sharpe": 0.25441552212621765,
+      "cagr": 0.0103997628517849,
+      "max_drawdown": -0.05707300091565137,
+      "profit_factor": 1.2159004617502551,
+      "n_trades": 273
+    },
+    {
+      "params": {
+        "ema_fast": 15,
+        "ema_slow": 50,
+        "atr_stop_mult": 2.0,
+        "gap_threshold": 0.05
+      },
+      "score": 0.2336544304300716,
+      "sharpe": 0.25441376084377393,
+      "cagr": 0.010399684394740039,
+      "max_drawdown": -0.05707310073795058,
+      "profit_factor": 1.2158985064371182,
+      "n_trades": 273
+    }
+  ]
+}
