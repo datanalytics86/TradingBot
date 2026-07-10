@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-07-10T19:27:50.458528+00:00",
+  "timestamp": "2026-07-10T19:37:22.393537+00:00",
   "status": "ok",
-  "equity": 101945.36,
+  "equity": 101916.01,
   "errors": [],
   "summaries": [
     {
       "symbol": "SPY",
-      "signal": "n/d",
-      "action": "adoptada (sin operar)"
+      "signal": "FLAT",
+      "action": "cierre SPY (cambio de se\u00f1al)"
     },
     {
       "symbol": "QQQ",

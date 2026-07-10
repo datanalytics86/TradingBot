@@ -2,10 +2,10 @@
   "peak_equity": 101945.36,
   "positions": {
     "SPY": {
-      "direction": "LONG",
-      "stop": 731.5671517508371,
-      "traded_symbol": "SPY",
-      "signal_direction": "LONG"
+      "direction": null,
+      "stop": null,
+      "traded_symbol": null,
+      "signal_direction": null
     },
     "QQQ": {
       "direction": null,
