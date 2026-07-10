@@ -52,25 +52,37 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-            python3 -c "
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram no configurado; se omite notificacion de fallo."
+            exit 0
+          fi
+          python3 <<'PY'
           import json, os, urllib.request
-          msg = 'TradingBot: el ciclo diario FALLÓ en GitHub Actions. Revisa los logs.'
-          if os.path.exists('last_run.json'):
-              with open('last_run.json') as f:
+
+          msg = "TradingBot: el ciclo diario FALLO en GitHub Actions. Revisa los logs."
+          if os.path.exists("last_run.json"):
+              with open("last_run.json", encoding="utf-8") as f:
                   data = json.load(f)
-              errs = data.get('errors', [])
+              errs = data.get("errors", [])
               if errs:
-                  msg += '\nErrores: ' + ', '.join(e['symbol'] for e in errs)
-          payload = json.dumps({'chat_id': os.environ['TELEGRAM_CHAT_ID'], 'text': msg}).encode()
+                  msg += "\nErrores: " + ", ".join(
+                      (e.get("symbol") if isinstance(e, dict) else str(e)) for e in errs
+                  )
+          payload = json.dumps(
+              {"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": msg}
+          ).encode()
           req = urllib.request.Request(
-              f\"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage\",
-              data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+              f"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage",
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
           try:
               urllib.request.urlopen(req, timeout=10)
-          except Exception:
-              pass
-          "
+              print("Notificacion Telegram de fallo enviada")
+          except Exception as exc:
+              print(f"No se pudo notificar por Telegram: {exc}")
+          PY
 
       - name: Commitear y pushear el estado actualizado
         if: always()
@@ -97,19 +109,32 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-            python3 -c "
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram no configurado; se omite notificacion de push."
+            exit 0
+          fi
+          python3 <<'PY'
           import json, os, urllib.request
-          msg = 'TradingBot: el ciclo OK pero fallo el push de state.json a GitHub. Revisa permisos del workflow.'
-          payload = json.dumps({'chat_id': os.environ['TELEGRAM_CHAT_ID'], 'text': msg}).encode()
+
+          msg = (
+              "TradingBot: el ciclo OK pero fallo el push de state.json a GitHub. "
+              "Revisa permisos del workflow."
+          )
+          payload = json.dumps(
+              {"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": msg}
+          ).encode()
           req = urllib.request.Request(
-              f\"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage\",
-              data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+              f"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage",
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
           try:
               urllib.request.urlopen(req, timeout=10)
-          except Exception:
-              pass
-          "
+              print("Notificacion Telegram de push enviada")
+          except Exception as exc:
+              print(f"No se pudo notificar por Telegram: {exc}")
+          PY
 
       - name: Fallar el job si el bot falló
         if: steps.bot.outcome == 'failure'

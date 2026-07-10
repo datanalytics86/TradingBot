@@ -4,13 +4,16 @@ Objetivo: decidir con datos si el bot está listo para **dinero real**.
 
 ## Semana 0 — Preparación (hoy)
 
-- [ ] Confirmar que el bot corre **solo en GitHub Actions** (sin tarea local)
-- [ ] Telegram funcionando
-- [ ] Dashboard visible (GitHub Pages o `docs/index.html` en el repo)
-- [ ] Anotar equity inicial paper: $________
+- [x] Confirmar que el bot corre **solo en GitHub Actions** (sin tarea local) — *2026-07-10: tarea Windows `TradingBot-DailyCycle` desactivada en T14*
+- [ ] Telegram funcionando — *pendiente: `.env` local sin `TELEGRAM_*`*
+- [x] Dashboard visible en repo (`docs/index.html`) — *Pages público existe pero desactualizado (2026-07-06); redeploy pendiente*
+- [x] Anotar equity inicial paper: **~$100,000** (default Alpaca paper en `equity_history.csv`)
 - [ ] Decidir capital objetivo live: $________ (recomendado: $500)
+- [ ] Keys Alpaca **reales** en `.env` de esta máquina — *hoy hay placeholders → ciclo local 401*
 
 **Nota:** la cuenta paper de Alpaca tiene ~$100,000 por defecto. El sizing en live con $500 será **mucho menor**. Para validar sizing real, resetea el balance paper a ~$500 si Alpaca lo permite.
+
+**Ver también:** `docs/status-validacion-2026-07-10.md` (chequeo completo al retomar el proyecto).
 
 ---
 
