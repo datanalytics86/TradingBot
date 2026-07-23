@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-22T22:37:52.761863+00:00",
+  "timestamp": "2026-07-23T22:33:59.878020+00:00",
   "status": "ok",
   "equity": 101911.74,
   "errors": [],
@@ -10,12 +10,12 @@
       "action": "ninguna"
     },
     {
-      "symbol": "QQQ",
+      "symbol": "IWM",
       "signal": "FLAT",
       "action": "ninguna"
     },
     {
-      "symbol": "IWM",
+      "symbol": "QQQ",
       "signal": "FLAT",
       "action": "ninguna"
     }
