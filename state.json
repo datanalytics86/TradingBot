@@ -2,10 +2,10 @@
   "peak_equity": 101945.36,
   "positions": {
     "SPY": {
-      "direction": null,
-      "stop": null,
-      "traded_symbol": null,
-      "signal_direction": null
+      "direction": "LONG",
+      "stop": 735.4396384102957,
+      "traded_symbol": "SPY",
+      "signal_direction": "LONG"
     },
     "QQQ": {
       "direction": null,
@@ -20,6 +20,6 @@
       "signal_direction": null
     }
   },
-  "day_start_date": "2026-07-31",
+  "day_start_date": "2026-08-03",
   "day_start_equity": 101911.74
 }
