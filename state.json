@@ -1,17 +1,17 @@
 {
-  "peak_equity": 102498.73,
+  "peak_equity": 102509.92,
   "positions": {
     "SPY": {
       "direction": "LONG",
-      "stop": 747.2496752057757,
+      "stop": 750.4323490687779,
       "traded_symbol": "SPY",
       "signal_direction": "LONG"
     },
     "QQQ": {
-      "direction": null,
-      "stop": null,
-      "traded_symbol": null,
-      "signal_direction": null
+      "direction": "LONG",
+      "stop": 685.6871730259487,
+      "traded_symbol": "QQQ",
+      "signal_direction": "LONG"
     },
     "IWM": {
       "direction": null,

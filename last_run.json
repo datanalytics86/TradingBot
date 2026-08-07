@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-08-07T01:04:28.248342+00:00",
+  "timestamp": "2026-08-07T22:09:04.681982+00:00",
   "status": "ok",
-  "equity": 102292.8,
+  "equity": 102509.92,
   "errors": [],
   "summaries": [
     {
       "symbol": "SPY",
       "signal": "LONG",
-      "action": "mantiene SPY, stop=747.25"
+      "action": "mantiene SPY, stop=750.43"
     },
     {
       "symbol": "IWM",
@@ -16,8 +16,8 @@
     },
     {
       "symbol": "QQQ",
-      "signal": "FLAT",
-      "action": "ninguna"
+      "signal": "LONG",
+      "action": "abre QQQ qty=41.373"
     }
   ]
 }
