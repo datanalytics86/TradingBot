@@ -3,7 +3,7 @@
   "positions": {
     "SPY": {
       "direction": "LONG",
-      "stop": 750.4323490687779,
+      "stop": 750.8818206787109,
       "traded_symbol": "SPY",
       "signal_direction": "LONG"
     },
@@ -20,6 +20,6 @@
       "signal_direction": null
     }
   },
-  "day_start_date": "2026-08-07",
-  "day_start_equity": 102292.8
+  "day_start_date": "2026-08-10",
+  "day_start_equity": 102485.28
 }
