@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-08-10T22:10:24.441879+00:00",
+  "timestamp": "2026-08-11T22:21:44.576712+00:00",
   "status": "ok",
-  "equity": 102485.28,
+  "equity": 102275.27,
   "errors": [],
   "summaries": [
     {
@@ -16,8 +16,8 @@
     },
     {
       "symbol": "QQQ",
-      "signal": "LONG",
-      "action": "mantiene QQQ, stop=685.69"
+      "signal": "FLAT",
+      "action": "cierre QQQ (cambio de se\u00f1al)"
     }
   ]
 }

@@ -8,10 +8,10 @@
       "signal_direction": "LONG"
     },
     "QQQ": {
-      "direction": "LONG",
-      "stop": 685.6871730259487,
-      "traded_symbol": "QQQ",
-      "signal_direction": "LONG"
+      "direction": null,
+      "stop": null,
+      "traded_symbol": null,
+      "signal_direction": null
     },
     "IWM": {
       "direction": null,
@@ -20,6 +20,6 @@
       "signal_direction": null
     }
   },
-  "day_start_date": "2026-08-10",
-  "day_start_equity": 102485.28
+  "day_start_date": "2026-08-11",
+  "day_start_equity": 102275.27
 }
