@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-08-14T21:53:29.212483+00:00",
+  "timestamp": "2026-08-17T21:55:00.109382+00:00",
   "status": "ok",
-  "equity": 102869.67,
+  "equity": 102696.02,
   "errors": [],
   "summaries": [
     {
@@ -10,12 +10,12 @@
       "action": "mantiene SPY, stop=756.69"
     },
     {
-      "symbol": "IWM",
+      "symbol": "QQQ",
       "signal": "FLAT",
       "action": "ninguna"
     },
     {
-      "symbol": "QQQ",
+      "symbol": "IWM",
       "signal": "FLAT",
       "action": "ninguna"
     }
