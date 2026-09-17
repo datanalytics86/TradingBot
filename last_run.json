@@ -1,16 +1,16 @@
 {
-  "timestamp": "2026-09-16T23:47:37.863895+00:00",
+  "timestamp": "2026-09-17T23:38:41.994905+00:00",
   "status": "ok",
   "equity": 102371.36,
   "errors": [],
   "summaries": [
     {
-      "symbol": "SPY",
+      "symbol": "IWM",
       "signal": "FLAT",
       "action": "ninguna"
     },
     {
-      "symbol": "IWM",
+      "symbol": "SPY",
       "signal": "FLAT",
       "action": "ninguna"
     },
