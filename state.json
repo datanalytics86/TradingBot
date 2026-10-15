@@ -14,10 +14,10 @@
       "signal_direction": null
     },
     "IWM": {
-      "direction": null,
-      "stop": null,
-      "traded_symbol": null,
-      "signal_direction": null
+      "direction": "LONG",
+      "stop": 14.0780348777771,
+      "traded_symbol": "RWM",
+      "signal_direction": "SHORT"
     }
   },
   "day_start_date": "2026-10-15",

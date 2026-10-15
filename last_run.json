@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-15T00:03:16.100016+00:00",
+  "timestamp": "2026-10-15T23:47:58.984205+00:00",
   "status": "ok",
   "equity": 102371.36,
   "errors": [],
@@ -11,8 +11,8 @@
     },
     {
       "symbol": "IWM",
-      "signal": "FLAT",
-      "action": "ninguna"
+      "signal": "SHORT",
+      "action": "abre RWM qty=2810.470"
     },
     {
       "symbol": "SPY",
