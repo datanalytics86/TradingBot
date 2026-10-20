@@ -1,5 +1,5 @@
 {
-  "peak_equity": 102967.51,
+  "peak_equity": 102969.21,
   "positions": {
     "SPY": {
       "direction": null,
@@ -20,6 +20,6 @@
       "signal_direction": "SHORT"
     }
   },
-  "day_start_date": "2026-10-16",
-  "day_start_equity": 102941.12
+  "day_start_date": "2026-10-20",
+  "day_start_equity": 102969.21
 }
