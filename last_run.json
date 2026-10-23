@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-10-23T00:08:00.608409+00:00",
+  "timestamp": "2026-10-23T23:57:46.901787+00:00",
   "status": "ok",
-  "equity": 102154.18,
+  "equity": 102491.43,
   "errors": [],
   "summaries": [
     {
@@ -10,12 +10,12 @@
       "action": "mantiene RWM, stop=14.30"
     },
     {
-      "symbol": "QQQ",
+      "symbol": "SPY",
       "signal": "FLAT",
       "action": "ninguna"
     },
     {
-      "symbol": "SPY",
+      "symbol": "QQQ",
       "signal": "FLAT",
       "action": "ninguna"
     }
