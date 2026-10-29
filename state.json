@@ -14,12 +14,12 @@
       "signal_direction": null
     },
     "IWM": {
-      "direction": "LONG",
-      "stop": 14.300374235425677,
-      "traded_symbol": "RWM",
-      "signal_direction": "SHORT"
+      "direction": null,
+      "stop": null,
+      "traded_symbol": null,
+      "signal_direction": null
     }
   },
-  "day_start_date": "2026-10-28",
-  "day_start_equity": 101704.5
+  "day_start_date": "2026-10-29",
+  "day_start_equity": 101507.77
 }

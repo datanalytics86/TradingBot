@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-10-28T00:42:17.010089+00:00",
+  "timestamp": "2026-10-29T01:16:33.814626+00:00",
   "status": "ok",
-  "equity": 101704.5,
+  "equity": 101507.77,
   "errors": [],
   "summaries": [
     {
       "symbol": "IWM",
-      "signal": "SHORT",
-      "action": "mantiene RWM, stop=14.30"
+      "signal": "FLAT",
+      "action": "cierre RWM (cambio de se\u00f1al)"
     },
     {
       "symbol": "SPY",
