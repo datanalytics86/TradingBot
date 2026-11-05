@@ -1,16 +1,16 @@
 {
-  "timestamp": "2026-11-04T01:37:29.023307+00:00",
+  "timestamp": "2026-11-05T01:44:45.025252+00:00",
   "status": "ok",
   "equity": 101282.09,
   "errors": [],
   "summaries": [
     {
-      "symbol": "IWM",
+      "symbol": "QQQ",
       "signal": "FLAT",
       "action": "ninguna"
     },
     {
-      "symbol": "QQQ",
+      "symbol": "IWM",
       "signal": "FLAT",
       "action": "ninguna"
     },
