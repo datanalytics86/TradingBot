@@ -8,18 +8,18 @@
       "signal_direction": null
     },
     "QQQ": {
-      "direction": null,
-      "stop": null,
-      "traded_symbol": null,
-      "signal_direction": null
+      "direction": "LONG",
+      "stop": 26.767500468662806,
+      "traded_symbol": "PSQ",
+      "signal_direction": "SHORT"
     },
     "IWM": {
-      "direction": null,
-      "stop": null,
-      "traded_symbol": null,
-      "signal_direction": null
+      "direction": "LONG",
+      "stop": 14.207856723240443,
+      "traded_symbol": "RWM",
+      "signal_direction": "SHORT"
     }
   },
-  "day_start_date": "2026-11-06",
+  "day_start_date": "2026-11-07",
   "day_start_equity": 101282.09
 }
