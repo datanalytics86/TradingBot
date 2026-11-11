@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-11-10T03:46:37.212414+00:00",
+  "timestamp": "2026-11-11T01:27:30.967208+00:00",
   "status": "ok",
-  "equity": 99676.14,
+  "equity": 99939.08,
   "errors": [],
   "summaries": [
     {
@@ -12,7 +12,7 @@
     {
       "symbol": "IWM",
       "signal": "FLAT",
-      "action": "cierre RWM (stop)"
+      "action": "ninguna"
     },
     {
       "symbol": "SPY",
