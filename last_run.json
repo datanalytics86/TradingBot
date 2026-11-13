@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-11-12T02:29:14.899055+00:00",
+  "timestamp": "2026-11-13T02:05:25.367204+00:00",
   "status": "ok",
-  "equity": 99590.05,
+  "equity": 99295.41,
   "errors": [],
   "summaries": [
     {
       "symbol": "QQQ",
-      "signal": "SHORT",
-      "action": "mantiene PSQ, stop=26.77"
+      "signal": "FLAT",
+      "action": "cierre PSQ (stop)"
     },
     {
       "symbol": "IWM",
