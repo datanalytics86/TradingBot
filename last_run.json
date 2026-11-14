@@ -1,18 +1,18 @@
 {
-  "timestamp": "2026-11-13T02:05:25.367204+00:00",
+  "timestamp": "2026-11-14T01:42:24.347830+00:00",
   "status": "ok",
-  "equity": 99295.41,
+  "equity": 99509.69,
   "errors": [],
   "summaries": [
     {
       "symbol": "QQQ",
-      "signal": "FLAT",
-      "action": "cierre PSQ (stop)"
+      "signal": "SHORT",
+      "action": "abre PSQ qty=1113.395"
     },
     {
       "symbol": "IWM",
-      "signal": "FLAT",
-      "action": "ninguna"
+      "signal": "SHORT",
+      "action": "abre RWM qty=2752.689"
     },
     {
       "symbol": "SPY",
