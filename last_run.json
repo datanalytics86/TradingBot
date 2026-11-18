@@ -1,18 +1,18 @@
 {
-  "timestamp": "2026-11-17T04:08:42.064057+00:00",
+  "timestamp": "2026-11-18T03:06:06.243427+00:00",
   "status": "ok",
-  "equity": 100308.03,
+  "equity": 101032.05,
   "errors": [],
   "summaries": [
     {
       "symbol": "QQQ",
       "signal": "SHORT",
-      "action": "mantiene PSQ, stop=25.83"
+      "action": "mantiene PSQ, stop=25.94"
     },
     {
       "symbol": "IWM",
       "signal": "SHORT",
-      "action": "mantiene RWM, stop=13.97"
+      "action": "mantiene RWM, stop=14.16"
     },
     {
       "symbol": "SPY",
