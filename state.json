@@ -1,5 +1,5 @@
 {
-  "peak_equity": 144544.29,
+  "peak_equity": 148250.14,
   "positions": {
     "SPY": {
       "direction": null,
@@ -9,17 +9,17 @@
     },
     "QQQ": {
       "direction": "LONG",
-      "stop": 26.439998694828578,
+      "stop": 27.8132141658238,
       "traded_symbol": "PSQ",
       "signal_direction": "SHORT"
     },
     "IWM": {
       "direction": "LONG",
-      "stop": 28.8353556905474,
+      "stop": 29.54928425380162,
       "traded_symbol": "RWM",
       "signal_direction": "SHORT"
     }
   },
-  "day_start_date": "2026-11-20",
-  "day_start_equity": 144544.29
+  "day_start_date": "2026-11-21",
+  "day_start_equity": 148250.14
 }
