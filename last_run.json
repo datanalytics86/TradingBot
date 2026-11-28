@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-11-27T03:45:32.198904+00:00",
+  "timestamp": "2026-11-28T03:28:56.527831+00:00",
   "status": "ok",
-  "equity": 142286.18,
+  "equity": 140749.32,
   "errors": [],
   "summaries": [
     {
@@ -17,7 +17,7 @@
     {
       "symbol": "IWM",
       "signal": "SHORT",
-      "action": "mantiene RWM, stop=29.55"
+      "action": "cierre RWM (stop)"
     }
   ]
 }
